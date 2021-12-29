@@ -71,92 +71,9 @@ class Player:
             ).serialize()
         )
 
-    def _listen(self):
-        while True:
-            data = self.socket.recv(constants.DATASIZE)
-            if not data:
-                continue
-            data = GameData.GameData.deserialize(data)
-            if type(data) is GameData.ServerPlayerStartRequestAccepted:
-                dataOk = True
-                print(
-                    "Ready: "
-                    + str(data.acceptedStartRequests)
-                    + "/"
-                    + str(data.connectedPlayers)
-                    + " players"
-                )
-                data = self.socket.recv(constants.DATASIZE)
-                data = GameData.GameData.deserialize(data)
-            if type(data) is GameData.ServerStartGameData:
-                dataOk = True
-                print("Game start!")
-                self.socket.send(
-                    GameData.ClientPlayerReadyData(self.player_name).serialize()
-                )
-                self.status = "Game"
-            if type(data) is GameData.ServerGameStateData:
-                dataOk = True
-                print("Current player: " + data.currentPlayer)
-                print("Player hands: ")
-                for p in data.players:
-                    print(p.toClientString())
-                print("Table cards: ")
-                for pos in data.tableCards:
-                    print(pos + ": [ ")
-                    for c in data.tableCards[pos]:
-                        print(c.toClientString() + " ")
-                    print("]")
-                print("Discard pile: ")
-                for c in data.discardPile:
-                    print("\t" + c.toClientString())
-                print(f"Note tokens used: {data.usedNoteTokens}/8")
-                print(f"Storm tokens used: {data.usedStormTokens}/3")
-            if type(data) is GameData.ServerActionInvalid:
-                dataOk = True
-                print("Invalid action performed. Reason:")
-                print(data.message)
-            if type(data) is GameData.ServerActionValid:
-                dataOk = True
-                print("Action valid!")
-                print("Current player: " + data.player)
-            if type(data) is GameData.ServerPlayerMoveOk:
-                dataOk = True
-                print("Nice move!")
-                print("Current player: " + data.player)
-            if type(data) is GameData.ServerPlayerThunderStrike:
-                dataOk = True
-                print("OH NO! The Gods are unhappy with you!")
-            if type(data) is GameData.ServerHintData:
-                dataOk = True
-                print("Hint type: " + data.type)
-                print(
-                    "Player "
-                    + data.destination
-                    + " cards with value "
-                    + str(data.value)
-                    + " are:"
-                )
-                for i in data.positions:
-                    print("\t" + str(i))
-            if type(data) is GameData.ServerInvalidDataReceived:
-                dataOk = True
-                print(data.data)
-            if type(data) is GameData.ServerGameOver:
-                dataOk = True
-                print(data.message)
-                print(data.score)
-                print(data.scoreMessage)
-                sys.stdout.flush()
-                return
-            if not dataOk:
-                print("Unknown or unimplemented data type: " + str(type(data)))
-
     def run(self) -> None:
         """Start the threads to manage the game"""
-        # Start the server listener
-        self.listener = threading.Thread(target=self._listen, daemon=True)
-        self.listener.start()
+        pass
 
     def end(self) -> None:
         """Terminate all threads and close socket to finish the game"""
