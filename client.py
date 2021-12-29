@@ -16,7 +16,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--playerName",
         help="Player's name",
-        default=f"Player{random.randint(0, 6)}",
         type=str,
     )
     parser.add_argument(
