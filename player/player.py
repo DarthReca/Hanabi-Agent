@@ -71,6 +71,9 @@ class Player:
             ).serialize()
         )
 
+    def _disconnect(self):
+        self.socket.shutdown(2)
+
     def run(self) -> None:
         """Start the threads to manage the game"""
         pass

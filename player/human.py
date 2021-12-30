@@ -8,7 +8,12 @@ import GameData
 class Human(Player):
     def _listen(self):
         while True:
-            data = self.socket.recv(constants.DATASIZE)
+            # Try receiving data otherwise terminate
+            try:
+                data = self.socket.recv(constants.DATASIZE)
+            except BrokenPipeError:
+                return
+            # Process data if it is not empty
             if not data:
                 continue
             data = GameData.GameData.deserialize(data)
@@ -92,6 +97,7 @@ class Human(Player):
             command = input()
             # Choose data to send
             if command == "exit":
+                self._disconnect()
                 return
             elif command == "ready" and self.status == "Lobby":
                 self._start_game()
@@ -153,4 +159,5 @@ class Human(Player):
 
     def end(self) -> None:
         self.input_manager.join()
+        self.listener.join()
         super().end()
