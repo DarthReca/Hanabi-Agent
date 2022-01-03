@@ -1,45 +1,69 @@
 from .player import Player
 import constants
 import GameData
-from typing import List
+from typing import List, Union, Set, Tuple
+from itertools import product
+import game
 
 
 class Possibility:
     def __init__(self) -> None:
-        self.color = ["red", "yellow", "green", "blue", "yellow"]
-        self.value = [i for i in range(1, 6)]
+        self.value = set(
+            product(
+                ["red", "yellow", "green", "blue", "yellow"], [i for i in range(1, 6)]
+            )
+        )
+
+    def set_color(self, color: str):
+        self.value = set(filter(lambda x: x[0] == color, self.value))
+
+    def set_value(self, value: int):
+        self.value = set(filter(lambda x: x[1] == value, self.value))
+
+    def remove_card(self, card: game.Card):
+        self.value -= {(card.color, card.value)}
+
+    def known(self) -> bool:
+        return len(self.value) == 1
 
 
 class Bot(Player):
     def __init__(self, host: str, port: int, player_name: str) -> None:
         super().__init__(host, port, player_name)
-        self.players = []
+        self.players = []  # type: List[str]
         self.turn_of = ""
         self.possible_hand = [Possibility() for _ in range(5)]
         self.table_cards = []
         self.remaining_tokens = 8
+        # Count cards in deck
+        self.remaining_in_deck = {"": 1}
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
         for i in hint.positions:
             if hint.type == "value":
-                self.possible_hand[i].value = [hint.value]
+                self.possible_hand[i].set_value(hint.value)
             else:
-                self.possible_hand[i].color = [hint.value]
+                self.possible_hand[i].set_color(hint.value)
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
-        self.players = infos.players
+        self.players = [x.name for x in infos.players] + [self.player_name]
         self.table_cards = infos.tableCards
         self.remaining_tokens = 8 - infos.usedNoteTokens
+        # Update possible cards
+        for possibility in self.possible_hand:
+            pass
 
     def _process_valid_action(self, action: GameData.ServerActionValid) -> bool:
         self.turn_of = action.player
-        return self.turn_of == self.player_name
+
+    def _pass_turn(self):
+        next_player = (self.players.index(self.turn_of) + 1) % len(self.players)
+        self.turn_of = self.players[next_player]
 
     def run(self) -> None:
         super().run()
         self._start_game()
-        need_info = True
         while True:
             data = self.socket.recv(constants.DATASIZE)
             data = GameData.GameData.deserialize(data)
@@ -49,23 +73,22 @@ class Bot(Player):
                 self.socket.send(
                     GameData.ClientPlayerReadyData(self.player_name).serialize()
                 )
+                self._get_infos()
+                continue
             # Playing
             if self.status == "Game":
-                if (
-                    type(data) is GameData.ServerHintData
-                    and data.destination == self.player_name
-                ):
-                    self._elaborate_hint(data)
+                if type(data) is GameData.ServerHintData:
+                    if data.destination == self.player_name:
+                        self._elaborate_hint(data)
+                    # Pass turn
+                    self._pass_turn()
                 if type(data) is GameData.ServerGameStateData:
                     self._update_infos(data)
-                    need_info = False
                 if type(data) is GameData.ServerActionValid:
-                    need_info = self._process_valid_action(data)
+                    self._process_valid_action(data)
                 # Exec bot turn
                 if self.turn_of == self.player_name:
                     print("My turn")
-                    if need_info:
-                        self._get_infos()
 
     def end(self) -> None:
         super().end()
