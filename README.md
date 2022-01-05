@@ -31,6 +31,9 @@ Commands for client:
 ### Researchs
 
 - https://github.com/captn3m0/boardgame-research#hanabi
+- https://helios2.mi.parisdescartes.fr/~bouzy/publications/bouzy-hanabi-2017.pdf
+- https://arxiv.org/pdf/1809.09764.pdf
+- [Osawa](https://aaai.org/ocs/index.php/WS/AAAIW15/paper/view/10167/10193)
 
 ### Repos
 
