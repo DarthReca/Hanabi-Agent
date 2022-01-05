@@ -10,7 +10,7 @@ class Possibility:
     def __init__(self) -> None:
         self.value = set(
             product(
-                ["red", "yellow", "green", "blue", "yellow"], [i for i in range(1, 6)]
+                ["red", "yellow", "green", "blue", "white"], [i for i in range(1, 6)]
             )
         )
 
