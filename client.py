@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", help="Server IP", default=HOST, type=str)
     parser.add_argument("--port", help="Server listening port", default=PORT, type=int)
     parser.add_argument(
-        "--playerName",
+        "--player_name",
         help="Player's name",
         type=str,
     )
@@ -24,9 +24,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Select type of player
     if not args.bot:
-        player = Human(args.host, args.port, args.playerName)
+        player = Human(args.host, args.port, args.player_name)
     else:
-        player = Bot(args.host, args.port, args.playerName)
+        player = Bot(args.host, args.port, args.player_name)
 
     player.run()
     player.end()

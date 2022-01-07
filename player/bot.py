@@ -1,18 +1,17 @@
 from .player import Player
 import constants
 import GameData
-from typing import List, Union, Set, Tuple
-from itertools import product
+from typing import List, Union, Set, Tuple, Dict, Counter
+from itertools import product, chain
 import game
+import collections
+
+Deck = Counter[Tuple[str, int]]
 
 
 class Possibility:
     def __init__(self) -> None:
-        self.value = set(
-            product(
-                ["red", "yellow", "green", "blue", "white"], [i for i in range(1, 6)]
-            )
-        )
+        self.value = set(product(constants.COLORS, [i for i in range(1, 6)]))
 
     def set_color(self, color: str):
         self.value = set(filter(lambda x: x[0] == color, self.value))
@@ -20,8 +19,8 @@ class Possibility:
     def set_value(self, value: int):
         self.value = set(filter(lambda x: x[1] == value, self.value))
 
-    def remove_card(self, card: game.Card):
-        self.value -= {(card.color, card.value)}
+    def remove_cards(self, cards: Deck):
+        self.value &= set((constants.INITIAL_DECK - cards).keys())
 
     def known(self) -> bool:
         return len(self.value) == 1
@@ -35,8 +34,6 @@ class Bot(Player):
         self.possible_hand = [Possibility() for _ in range(5)]
         self.table_cards = []
         self.remaining_tokens = 8
-        # Count cards in deck
-        self.remaining_in_deck = {"": 1}
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
         for i in hint.positions:
@@ -51,13 +48,24 @@ class Bot(Player):
         self.table_cards = infos.tableCards
         self.remaining_tokens = 8 - infos.usedNoteTokens
         # Update possible cards
+        player_cards = [player.hand for player in infos.players]
+        known_cards = collections.Counter(
+            [
+                (x.color, x.value)
+                for x in chain(
+                    infos.discardPile, *player_cards, *infos.tableCards.values()
+                )
+            ]
+        )
         for possibility in self.possible_hand:
-            pass
+            possibility.remove_cards(known_cards)
 
     def _process_valid_action(self, action: GameData.ServerActionValid) -> bool:
         self.turn_of = action.player
 
     def _pass_turn(self):
+        if not self.players:
+            return
         next_player = (self.players.index(self.turn_of) + 1) % len(self.players)
         self.turn_of = self.players[next_player]
 
@@ -73,10 +81,12 @@ class Bot(Player):
                 self.socket.send(
                     GameData.ClientPlayerReadyData(self.player_name).serialize()
                 )
-                self._get_infos()
                 continue
             # Playing
             if self.status == "Game":
+                if type(data) is GameData.ServerStartGameData:
+                    self.players = data.players
+                    self.turn_of = self.players[0]
                 if type(data) is GameData.ServerHintData:
                     if data.destination == self.player_name:
                         self._elaborate_hint(data)
