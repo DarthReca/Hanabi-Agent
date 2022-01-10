@@ -34,6 +34,8 @@ Commands for client:
 - https://helios2.mi.parisdescartes.fr/~bouzy/publications/bouzy-hanabi-2017.pdf
 - https://arxiv.org/pdf/1809.09764.pdf
 - [Osawa](https://aaai.org/ocs/index.php/WS/AAAIW15/paper/view/10167/10193)
+- [Sci-Hub | Advances in Computer Games. Lecture Notes in Computer Science | 10.1007/978-3-030-65883-0](https://sci-hub.se/10.1007/978-3-030-65883-0)
+- [Frontiers | Emergence of Cooperative Impression With Self-Estimation, Thinking Time, and Concordance of Risk Sensitivity in Playing Hanabi | Robotics and AI](https://www.frontiersin.org/articles/10.3389/frobt.2021.658348/full)
 
 ### Repos
 

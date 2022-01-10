@@ -14,10 +14,7 @@ game = Game()
 
 playersOk = []
 
-statuses = [
-    "Lobby",
-    "Game"
-]
+statuses = ["Lobby", "Game"]
 status = statuses[0]
 
 commandQueue = {}
@@ -38,7 +35,7 @@ def manageConnection(conn: socket, addr):
                 game.removePlayer(playerName)
                 keepActive = False
             else:
-                data = GameData.GameData.deserialize(data)    
+                data = GameData.GameData.deserialize(data)
                 if status == "Lobby":
                     if type(data) is GameData.ClientPlayerAddData:
                         playerName = data.sender
@@ -46,21 +43,36 @@ def manageConnection(conn: socket, addr):
                         playerConnections[playerName] = (conn, addr)
                         logging.info("Player connected: " + playerName)
                         game.addPlayer(playerName)
-                        conn.send(GameData.ServerPlayerConnectionOk(playerName).serialize())
+                        conn.send(
+                            GameData.ServerPlayerConnectionOk(playerName).serialize()
+                        )
                     elif type(data) is GameData.ClientPlayerStartRequest:
-                        if playerName not in game.getPlayers() and playerName != "" and playerName is not None:
+                        if (
+                            playerName not in game.getPlayers()
+                            and playerName != ""
+                            and playerName is not None
+                        ):
                             game.setPlayerReady(playerName)
                             logging.info("Player ready: " + playerName)
-                            conn.send(GameData.ServerPlayerStartRequestAccepted(len(game.getPlayers()), game.getNumReadyPlayers()).serialize())
+                            conn.send(
+                                GameData.ServerPlayerStartRequestAccepted(
+                                    len(game.getPlayers()), game.getNumReadyPlayers()
+                                ).serialize()
+                            )
                         else:
                             return
-                        if len(game.getPlayers()) == game.getNumReadyPlayers() and len(game.getPlayers()) > 1:
+                        if (
+                            len(game.getPlayers()) == game.getNumReadyPlayers()
+                            and len(game.getPlayers()) > 1
+                        ):
                             listNames = []
                             for player in game.getPlayers():
                                 listNames.append(player.name)
                             logging.info("Game start! Between: " + str(listNames))
                             for player in playerConnections:
-                                playerConnections[player][0].send(GameData.ServerStartGameData(listNames).serialize())
+                                playerConnections[player][0].send(
+                                    GameData.ServerStartGameData(listNames).serialize()
+                                )
                             game.start()
                     # This ensures every player is ready to send requests
                     elif type(data) is GameData.ClientPlayerReadyData:
@@ -70,16 +82,26 @@ def manageConnection(conn: socket, addr):
                         status = "Game"
                         for player in commandQueue:
                             for cmd in commandQueue[player]:
-                                singleData, multipleData = game.satisfyRequest(cmd, player)
+                                singleData, multipleData = game.satisfyRequest(
+                                    cmd, player
+                                )
                                 if singleData is not None:
-                                    playerConnections[player][0].send(singleData.serialize())
+                                    playerConnections[player][0].send(
+                                        singleData.serialize()
+                                    )
                                 if multipleData is not None:
                                     for id in playerConnections:
-                                        playerConnections[id][0].send(multipleData.serialize())
+                                        playerConnections[id][0].send(
+                                            multipleData.serialize()
+                                        )
                                         if game.isGameOver():
                                             os._exit(0)
                         commandQueue.clear()
-                    elif type(data) is not GameData.ClientPlayerAddData and type(data) is not GameData.ClientPlayerStartRequest and type(data) is not GameData.ClientPlayerReadyData:
+                    elif (
+                        type(data) is not GameData.ClientPlayerAddData
+                        and type(data) is not GameData.ClientPlayerStartRequest
+                        and type(data) is not GameData.ClientPlayerReadyData
+                    ):
                         commandQueue[playerName].append(data)
                 # In game
                 elif status == "Game":
@@ -101,6 +123,7 @@ def manageInput():
             logging.info("Closing the server...")
             os._exit(0)
 
+
 print("Type 'exit' to end the program")
 
 
@@ -113,7 +136,13 @@ def manageNetwork():
             conn, addr = s.accept()
             threading.Thread(target=manageConnection, args=(conn, addr)).start()
 
-logging.basicConfig(filename="game.log", level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt="%m/%d/%Y %I:%M:%S %p")
+
+logging.basicConfig(
+    filename="game.log",
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%m/%d/%Y %I:%M:%S %p",
+)
 logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 threading.Thread(target=manageNetwork).start()
 manageInput()

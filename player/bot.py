@@ -35,6 +35,17 @@ class Bot(Player):
         self.table_cards = []
         self.remaining_tokens = 8
 
+    def _merge_infos_in_deck(self, infos: GameData.ServerGameStateData) -> Deck:
+        player_cards = [player.hand for player in infos.players]
+        return collections.Counter(
+            [
+                (x.color, x.value)
+                for x in chain(
+                    infos.discardPile, *player_cards, *infos.tableCards.values()
+                )
+            ]
+        )
+
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
         for i in hint.positions:
             if hint.type == "value":
@@ -48,15 +59,7 @@ class Bot(Player):
         self.table_cards = infos.tableCards
         self.remaining_tokens = 8 - infos.usedNoteTokens
         # Update possible cards
-        player_cards = [player.hand for player in infos.players]
-        known_cards = collections.Counter(
-            [
-                (x.color, x.value)
-                for x in chain(
-                    infos.discardPile, *player_cards, *infos.tableCards.values()
-                )
-            ]
-        )
+        known_cards = self._merge_infos_in_deck(infos)
         for possibility in self.possible_hand:
             possibility.remove_cards(known_cards)
 
