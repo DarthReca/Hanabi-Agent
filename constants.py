@@ -1,5 +1,4 @@
-from itertools import product
-from collections import Counter
+import numpy as np
 
 # Program constants / server constants
 HOST = "127.0.0.1"
@@ -8,6 +7,7 @@ DATASIZE = 10240
 
 COLORS = ["red", "yellow", "green", "blue", "white"]
 CARD_COUNT = [3, 2, 2, 2, 1]
-INITIAL_DECK = Counter(
-    {(c, i): CARD_COUNT[i - 1] for c, i in product(COLORS, [i for i in range(1, 6)])}
+INITIAL_DECK = np.array(
+    [CARD_COUNT for _ in range(5)],
+    dtype=np.uint8,
 )

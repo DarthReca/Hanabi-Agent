@@ -32,10 +32,13 @@ Commands for client:
 
 - https://github.com/captn3m0/boardgame-research#hanabi
 - https://helios2.mi.parisdescartes.fr/~bouzy/publications/bouzy-hanabi-2017.pdf
-- https://arxiv.org/pdf/1809.09764.pdf
+- [Evolving Agents for the Hanabi 2018 CIG
+  Competition](https://arxiv.org/pdf/1809.09764.pdf)
 - [Osawa](https://aaai.org/ocs/index.php/WS/AAAIW15/paper/view/10167/10193)
 - [Sci-Hub | Advances in Computer Games. Lecture Notes in Computer Science | 10.1007/978-3-030-65883-0](https://sci-hub.se/10.1007/978-3-030-65883-0)
 - [Frontiers | Emergence of Cooperative Impression With Self-Estimation, Thinking Time, and Concordance of Risk Sensitivity in Playing Hanabi | Robotics and AI](https://www.frontiersin.org/articles/10.3389/frobt.2021.658348/full)
+- [MCTS](https://ieee-cog.org/2020/papers2019/paper_17.pdf)
+- [The Hanabi Challenge: A New Frontier for AI Research](https://arxiv.org/pdf/1902.00506.pdf)
 
 ### Repos
 
@@ -44,3 +47,9 @@ Commands for client:
 - https://github.com/chikinn/hanabi
 - https://github.com/Quuxplusone/Hanabi
 - https://github.com/lightvector/fireflower
+
+## Conventions
+
+- [hanabi.github.io/docs at main · hanabi/hanabi.github.io · GitHub](https://github.com/hanabi/hanabi.github.io/tree/main/docs)
+
+- [Tips hanabi &bull; Board Game Arena](https://en.boardgamearena.com/doc/Tips_hanabi#Finesse)
