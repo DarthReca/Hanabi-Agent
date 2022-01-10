@@ -42,3 +42,5 @@ Commands for client:
 - https://github.com/giove91/hanabi
 - https://github.com/bstnfrmry/hanabi
 - https://github.com/chikinn/hanabi
+- https://github.com/Quuxplusone/Hanabi
+- https://github.com/lightvector/fireflower
