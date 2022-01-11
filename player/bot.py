@@ -12,20 +12,24 @@ class Bot(Player):
         self.players = []  # type: List[str]
         self.turn_of = ""
         self.remaining_tokens = 8
-        self.known_cards = np.zeros([5, 5], dtype=np.uint8)
-
-    def _merge_infos_in_deck(self, infos: GameData.ServerGameStateData) -> np.ndarray:
-        player_cards = [player.hand for player in infos.players]
-        deck = np.zeros([5, 5], dtype=np.uint8)
-        for x in chain(infos.discardPile, *player_cards, *infos.tableCards.values()):
-            deck[COLORS.index(x.color), x.value - 1] += 1
-        return deck
+        self.table = np.zeros([5, 5], dtype=np.uint8)
+        self.discard_pile = np.zeros([5, 5], dtype=np.uint8)
+        self.player_cards = np.zeros([5, 5], dtype=np.uint8)
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
         self.remaining_tokens = 8 - infos.usedNoteTokens
         # Update possible cards
-        self.known_cards = self._merge_infos_in_deck(infos)
+        for card in chain(*infos.tableCards.values()):
+            self.table[COLORS.index(card.color), card.value - 1] = 1
+
+        self.discard_pile.fill(0)
+        for card in chain(*infos.discardPile):
+            self.discard_pile[COLORS.index(card.color), card.value - 1] += 1
+
+        self.player_cards.fill(0)
+        for card in chain(*[player.hand for player in infos.players]):
+            self.player_cards[COLORS.index(card.color), card.value - 1] += 1
 
     def _process_valid_action(self, action: GameData.ServerActionValid) -> None:
         self.turn_of = action.player

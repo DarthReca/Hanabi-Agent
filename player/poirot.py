@@ -1,9 +1,10 @@
 from .bot import Bot
 import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List
 import GameData
 from itertools import product
+from game import Card
 
 
 class CardKnowledge:
@@ -37,18 +38,19 @@ class CardKnowledge:
             value_index = value - 1
         return np.any(self.canbe[color_index, value_index])
 
-    def valuableness(self, known_cards: np.ndarray) -> float:
+    def preciousness(self, discard_pile: np.ndarray) -> float:
         """Probability the card could be a valuable one (it could be the only card of this type) over all its possible values"""
-        colors, values = self.valuable_cards(known_cards)
         valuables = np.zeros([5, 5], dtype=np.bool8)
-        valuables[colors, values] = True
+        valuables[INITIAL_DECK - discard_pile == 1] = True
         return np.sum(self.canbe & valuables) / np.sum(self.canbe)
 
-    def valuable_cards(self, known_cards: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        return np.nonzero(INITIAL_DECK - known_cards == 1)
-
-    def could_be_playable(self) -> bool:
-        pass
+    def playability(self, table: np.ndarray) -> float:
+        """Probability the card is currently playable"""
+        playables = np.zeros([5, 5], dtype=np.bool8)
+        for i in range(5):
+            row, col = np.nonzero(table[i] == 0)
+            playables[row[0], col[0]] = True
+        return np.sum(self.can_be & playables) / np.sum(self.can_be)
 
 
 class Poirot(Bot):
@@ -66,7 +68,7 @@ class Poirot(Bot):
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         super()._update_infos(infos)
         for possibility in self.possible_hand:
-            possibility.remove_cards(self.known_cards)
+            possibility.remove_cards(self.discard_pile + self.player_cards + self.table)
 
     def _delete_knowledge(self, index: int):
         self.possible_hand.pop(index)
