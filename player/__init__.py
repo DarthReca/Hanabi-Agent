@@ -1,2 +1,2 @@
-from .bot import Bot
 from .human import Human
+from .poirot import Poirot

@@ -4,8 +4,7 @@ from constants import *
 import argparse
 import random
 import player
-from player.bot import Bot
-from player.human import Human
+import player
 
 
 if __name__ == "__main__":
@@ -19,14 +18,18 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "--bot", help="True if this player is a bot", default=False, type=bool
+        "--bot",
+        help="Type of bot if this is not a player",
+        default="",
+        type=str,
+        choices=["Poirot"],
     )
     args = parser.parse_args()
     # Select type of player
     if not args.bot:
-        player = Human(args.host, args.port, args.player_name)
-    else:
-        player = Bot(args.host, args.port, args.player_name)
+        player = player.Human(args.host, args.port, args.player_name)
+    elif args.bot == "Poirot":
+        player = player.Poirot(args.host, args.port, args.player_name)
 
     player.run()
     player.end()
