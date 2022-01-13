@@ -44,11 +44,13 @@ class CardKnowledge:
             value_index = value - 1
         return np.any(self.canbe[color_index, value_index])
 
-    def preciousness(self, discard_pile: np.ndarray) -> float:
-        """Probability the card could be a valuable one (it could be the only card of this type) over all its possible values"""
-        valuables = np.zeros([5, 5], dtype=np.bool8)
-        valuables[INITIAL_DECK - discard_pile == 1] = True
-        return np.sum(self.canbe & valuables) / np.sum(self.canbe)
+    def preciousness(
+        self, discard_pile: np.ndarray, table: np.ndarray, players_cards: np.ndarray
+    ) -> float:
+        """Probability the card could be a valuable one (it could be the only card of this type)"""
+        valuables = INITIAL_DECK - discard_pile - players_cards - table == 1
+        to_play = table == 0
+        return np.sum(self.canbe & valuables & to_play) / np.sum(self.canbe)
 
     def playability(self, table: np.ndarray) -> float:
         """Probability the card is currently playable"""
@@ -58,40 +60,79 @@ class CardKnowledge:
             playables[row[0], col[0]] = True
         return np.sum(self.can_be & playables) / np.sum(self.can_be)
 
+    def usability(self, table: np.ndarray) -> float:
+        """Probability the card can still be played"""
+        to_play = table == 0
+        return np.sum(self.can_be & to_play) / np.sum(self.can_be)
+
 
 class Poirot(Bot):
     def __init__(self, host: str, port: int, player_name: str) -> None:
         super().__init__(host, port, player_name)
-        self.possible_hand = [CardKnowledge() for _ in range(5)]
+        self.players_knowledge = {self.player_name: [CardKnowledge() for _ in range(5)]}
+
+    def _process_standard_responses(self, data):
+        super()._process_standard_responses(data)
+        # For each player create his knowledge
+        if type(data) is GameData.ServerStartGameData:
+            for player in self.players:
+                self.players_knowledge[player] = [CardKnowledge() for _ in range(5)]
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
         self.turn_of = hint.player
         self.need_info = True
         for i in hint.positions:
             if hint.type == "value":
-                self.possible_hand[i].set_suggested_value(hint.value)
+                self.players_knowledge[hint.destination][i].set_suggested_value(
+                    hint.value
+                )
             else:
-                self.possible_hand[i].set_suggested_color(hint.value)
+                self.players_knowledge[hint.destination][i].set_suggested_color(
+                    hint.value
+                )
+
+    def _process_discard(self, action: GameData.ServerActionValid) -> None:
+        super()._process_discard(action)
+        self._delete_knowledge(action.lastPlayer, action.cardHandIndex)
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         super()._update_infos(infos)
-        for possibility in self.possible_hand:
+        for possibility in self.players_knowledge[self.player_name]:
             possibility.remove_cards(self.discard_pile + self.player_cards + self.table)
 
-    def _delete_knowledge(self, index: int):
-        self.possible_hand.pop(index)
-        self.possible_hand.insert(0, CardKnowledge())
+    def _delete_knowledge(self, player_name: str, index: int):
+        self.players_knowledge[player_name].pop(index)
+        self.players_knowledge[player_name].append(CardKnowledge())
 
     def _maybe_play_lowest_value(self) -> bool:
-        playables = [x for x in self.possible_hand if x.playability(self.table) == 1]
+        playables = [
+            x
+            for x in self.players_knowledge[self.player_name]
+            if x.playability(self.table) == 1
+        ]
         if len(playables) == 0:
             return False
         knowledge = min(
             playables,
             key=lambda x: np.min(x.possible_values()),
         )
-        card_index = self.possible_hand.index(knowledge)
+        card_index = self.players_knowledge[self.player_name].index(knowledge)
         self._play(card_index)
+        self._delete_knowledge(card_index)
+        return True
+
+    def _maybe_discard_useless(self) -> bool:
+        discardable = [
+            x
+            for x in self.players_knowledge[self.player_name]
+            if x.usability(self.table) == 0
+        ]
+        if len(discardable) == 0:
+            return False
+        card_index = self.players_knowledge[self.player_name].index(
+            np.random.default_rng().choice(discardable)
+        )
+        self._discard(card_index)
         self._delete_knowledge(card_index)
         return True
 
@@ -104,10 +145,7 @@ class Poirot(Bot):
             self._process_standard_responses(data)
             # Playing
             if type(data) is GameData.ServerHintData:
-                if data.destination == self.player_name:
-                    self._elaborate_hint(data)
-                # Pass turn
-                self._pass_turn()
+                self._elaborate_hint(data)
             if type(data) is GameData.ServerGameStateData:
                 self._update_infos(data)
             # Exec bot turn
