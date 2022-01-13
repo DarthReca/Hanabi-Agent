@@ -15,6 +15,7 @@ class Bot(Player):
         self.table = np.zeros([5, 5], dtype=np.uint8)
         self.discard_pile = np.zeros([5, 5], dtype=np.uint8)
         self.player_cards = np.zeros([5, 5], dtype=np.uint8)
+        self.need_info = False
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
@@ -31,8 +32,17 @@ class Bot(Player):
         for card in chain(*[player.hand for player in infos.players]):
             self.player_cards[COLORS.index(card.color), card.value - 1] += 1
 
-    def _process_valid_action(self, action: GameData.ServerActionValid) -> None:
+    def _process_discard(self, action: GameData.ServerActionValid) -> None:
         self.turn_of = action.player
+        self.need_info = True
+
+    def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
+        self.turn_of = action.player
+        self.need_info = True
+
+    def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
+        self.turn_of = action.player
+        self.need_info = True
 
     def _pass_turn(self):
         if not self.players:
@@ -49,8 +59,9 @@ class Bot(Player):
         if type(data) is GameData.ServerStartGameData:
             self.players = data.players
             self.turn_of = self.players[0]
+            self.need_info = True
         if type(data) is GameData.ServerActionValid:
-            self._process_valid_action(data)
+            self._process_discard(data)
 
     def run(self) -> None:
         super().run()

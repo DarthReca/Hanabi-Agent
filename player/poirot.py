@@ -12,13 +12,19 @@ class CardKnowledge:
         # Rows are colors, Columns are (values - 1)
         self.canbe = np.ones([5, 5], dtype=np.bool8)
 
-    def set_color(self, color: str):
+    def possible_values(self) -> np.ndarray:
+        return np.nonzero(self.can_be == True)[1] + 1
+
+    def possible_colors(self) -> List[str]:
+        return [COLORS[c] for c in np.nonzero(self.can_be == True)[0]]
+
+    def set_suggested_color(self, color: str):
         index = COLORS.index(color)
         mask = np.zeros([5, 5], dtype=np.bool8)
         mask[index] = True
         self.canbe &= mask
 
-    def set_value(self, value: int):
+    def set_suggested_value(self, value: int):
         index = value - 1
         mask = np.zeros([5, 5], dtype=np.bool8)
         mask[:, index] = True
@@ -59,11 +65,13 @@ class Poirot(Bot):
         self.possible_hand = [CardKnowledge() for _ in range(5)]
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
+        self.turn_of = hint.player
+        self.need_info = True
         for i in hint.positions:
             if hint.type == "value":
-                self.possible_hand[i].set_value(hint.value)
+                self.possible_hand[i].set_suggested_value(hint.value)
             else:
-                self.possible_hand[i].set_color(hint.value)
+                self.possible_hand[i].set_suggested_color(hint.value)
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         super()._update_infos(infos)
@@ -73,6 +81,19 @@ class Poirot(Bot):
     def _delete_knowledge(self, index: int):
         self.possible_hand.pop(index)
         self.possible_hand.insert(0, CardKnowledge())
+
+    def _maybe_play_lowest_value(self) -> bool:
+        playables = [x for x in self.possible_hand if x.playability(self.table) == 1]
+        if len(playables) == 0:
+            return False
+        knowledge = min(
+            playables,
+            key=lambda x: np.min(x.possible_values()),
+        )
+        card_index = self.possible_hand.index(knowledge)
+        self._play(card_index)
+        self._delete_knowledge(card_index)
+        return True
 
     def run(self) -> None:
         super().run()
@@ -92,4 +113,6 @@ class Poirot(Bot):
             # Exec bot turn
             if self.turn_of == self.player_name:
                 print("My turn")
-                self._get_infos()
+                if self.need_info:
+                    self._get_infos()
+                    self.need_info = False
