@@ -1,9 +1,38 @@
+import game
 from .player import Player
 from constants import COLORS, INITIAL_DECK, DATASIZE
 import GameData
-from typing import List
+from typing import List, Dict
 from itertools import chain
 import numpy as np
+
+
+class Table:
+    def __init__(self) -> None:
+        self.table_array = np.zeros([5, 5], dtype=np.uint8)
+        self.discard_array = np.zeros([5, 5], dtype=np.uint8)
+
+    def set_discard_pile(self, pile: List[game.Card]):
+        self.discard_array.fill(0)
+        for card in chain(*pile):
+            self.discard_pile[COLORS.index(card.color), card.value - 1] += 1
+
+    def set_table(self, table: Dict[str, List[game.Card]]):
+        for card in chain(*table.values()):
+            self.table[COLORS.index(card.color), card.value - 1] = 1
+
+    def next_playables_mask(self) -> np.ndarray:
+        playables = np.zeros([5, 5], dtype=np.bool8)
+        for i in range(5):
+            row, col = np.nonzero(self.table_array[i] == 0)
+            playables[row[0], col[0]] = True
+        return playables
+
+    def playables_mask(self) -> np.ndarray:
+        return self.table_array == 0
+
+    def total_table_card(self) -> np.ndarray:
+        return self.table_array + self.discard_array
 
 
 class Bot(Player):
@@ -12,25 +41,31 @@ class Bot(Player):
         self.players = []  # type: List[str]
         self.turn_of = ""
         self.remaining_tokens = 8
-        self.table = np.zeros([5, 5], dtype=np.uint8)
-        self.discard_pile = np.zeros([5, 5], dtype=np.uint8)
-        self.player_cards = np.zeros([5, 5], dtype=np.uint8)
+        self.table = Table()
+        self.player_cards = {}  # type: Dict[str, np.ndarray]
         self.need_info = False
+
+    def _cards_to_ndarray(self, *cards: game.Card):
+        ndarray = np.zeros([5, 5], dtype=np.uint8)
+        for card in cards:
+            ndarray[COLORS.index(card.color), card.value - 1] += 1
+        return ndarray
+
+    def _count_cards_in_hands(self) -> np.ndarray:
+        total = np.zeros([5, 5], dtype=np.uint8)
+        for hand in self.player_cards.values():
+            total += hand
+        return total
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
         self.remaining_tokens = 8 - infos.usedNoteTokens
         # Update possible cards
-        for card in chain(*infos.tableCards.values()):
-            self.table[COLORS.index(card.color), card.value - 1] = 1
+        for player in infos.players:
+            self.player_cards[player.name] = self._cards_to_ndarray(*player.hand)
 
-        self.discard_pile.fill(0)
-        for card in chain(*infos.discardPile):
-            self.discard_pile[COLORS.index(card.color), card.value - 1] += 1
-
-        self.player_cards.fill(0)
-        for card in chain(*[player.hand for player in infos.players]):
-            self.player_cards[COLORS.index(card.color), card.value - 1] += 1
+        self.table.set_table(infos.tableCards)
+        self.table.set_discard_pile(infos.discardPile)
 
     def _process_discard(self, action: GameData.ServerActionValid) -> None:
         self.turn_of = action.player
@@ -44,24 +79,20 @@ class Bot(Player):
         self.turn_of = action.player
         self.need_info = True
 
+    def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
+        self.players = action.players
+        self.turn_of = self.players[0]
+        self.need_info = True
+
     def _pass_turn(self):
         if not self.players:
             return
         next_player = (self.players.index(self.turn_of) + 1) % len(self.players)
         self.turn_of = self.players[next_player]
 
-    def _process_standard_responses(self, data):
-        if type(data) is GameData.ServerPlayerStartRequestAccepted:
-            self.status = "Game"
-            self.socket.send(
-                GameData.ClientPlayerReadyData(self.player_name).serialize()
-            )
-        if type(data) is GameData.ServerStartGameData:
-            self.players = data.players
-            self.turn_of = self.players[0]
-            self.need_info = True
-        if type(data) is GameData.ServerActionValid:
-            self._process_discard(data)
+    def _process_start_request(self, data):
+        self.status = "Game"
+        self.socket.send(GameData.ClientPlayerReadyData(self.player_name).serialize())
 
     def run(self) -> None:
         super().run()
