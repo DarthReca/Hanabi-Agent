@@ -22,7 +22,7 @@ if __name__ == "__main__":
         help="Type of bot if this is not a player",
         default="",
         type=str,
-        choices=["Poirot"],
+        choices=["Poirot", "MrSimple"],
     )
     args = parser.parse_args()
     # Select type of player
@@ -30,6 +30,8 @@ if __name__ == "__main__":
         player = player.Human(args.host, args.port, args.player_name)
     elif args.bot == "Poirot":
         player = player.Poirot(args.host, args.port, args.player_name)
+    elif args.bot == "MrSimple":
+        player = player.MrSimple(args.host, args.port, args.player_name)
 
     player.run()
     player.end()
