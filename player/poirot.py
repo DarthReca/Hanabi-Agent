@@ -1,10 +1,15 @@
+import enum
+import re
 from .bot import Bot, Table
 import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
-from typing import Optional, Tuple, Dict, List
+from typing import Literal, Optional, Tuple, Dict, List, Set
 import GameData
 from itertools import product
 from game import Card
+from collections import namedtuple
+
+Hint = namedtuple("Hint", ["type", "value", "informativity"])
 
 
 class CardKnowledge:
@@ -15,8 +20,8 @@ class CardKnowledge:
     def possible_values(self) -> np.ndarray:
         return np.nonzero(self.can_be == True)[1] + 1
 
-    def possible_colors(self) -> List[str]:
-        return [COLORS[c] for c in np.nonzero(self.can_be == True)[0]]
+    def possible_colors(self) -> Set[str]:
+        return {COLORS[c] for c in np.nonzero(self.can_be == True)[0]}
 
     def set_suggested_color(self, color: str):
         index = COLORS.index(color)
@@ -46,9 +51,7 @@ class CardKnowledge:
 
     def preciousness(self, table: Table, players_cards: np.ndarray) -> float:
         """Probability the card could be a valuable one (it could be the only card of this type)"""
-        valuables = (
-            INITIAL_DECK - table.discard_array - players_cards - table.table_array == 1
-        )
+        valuables = INITIAL_DECK - players_cards - table.total_table_card() == 1
         return np.sum(self.canbe & valuables & table.playables_mask()) / np.sum(
             self.canbe
         )
@@ -60,6 +63,9 @@ class CardKnowledge:
     def usability(self, table: Table) -> float:
         """Probability the card can still be played"""
         return np.sum(self.can_be & table.playables_mask()) / np.sum(self.can_be)
+
+    def is_known(self) -> bool:
+        return len(self.possible_colors()) == 1 and self.possible_values().shape[0] == 1
 
 
 class Poirot(Bot):
@@ -109,6 +115,23 @@ class Poirot(Bot):
         self.players_knowledge[player_name].pop(index)
         self.players_knowledge[player_name].append(CardKnowledge())
 
+    def _valuable_mask_of_player(self, target_player: str) -> np.ndarray:
+        target_hand = self._cards_to_ndarray(*self.player_cards[target_player])
+        # Remove cards in table
+        valuables = INITIAL_DECK - self.table.total_table_card()
+        # Remove cards in other players hand
+        for player, hand in self.player_cards.items():
+            if player != target_player:
+                valuables -= self._cards_to_ndarray(*hand)
+        # Remove cards I know I have in my hand
+        for knowledge in self.players_knowledge[self.player_name]:
+            if knowledge.is_known():
+                valuables[
+                    COLORS.index(knowledge.possible_colors()[0]),
+                    knowledge.possible_values().item(0) - 1,
+                ] -= 1
+        return valuables == 1 & self.table.playables_mask() & target_hand > 0
+
     def _maybe_play_lowest_value(self) -> bool:
         """Play a card we are sure can be played with the lowest value possible"""
         playables = [
@@ -157,11 +180,99 @@ class Poirot(Bot):
             return None
         return self.players_knowledge[self.player_name].index(unknown_discardable[0])
 
-    def _best_hint_for(self, player_name: str, table: Table):
-        really_playables = (
-            self.player_cards[player_name] > 0
-        ) & table.next_playables_mask()
-        # Try give color hint
+    def _best_hint_for(self, player_name: str) -> Hint:
+        """Select most informative hint for player. Return (color, inted_color) or (value, inted_value)"""
+        # Cards in hand that can be played now
+        really_playables = np.array(
+            [
+                (card.color, card.value) in self.table.next_playable_cards()
+                for card in self.player_cards[player_name]
+            ]
+        )
+        # Cards `player_name` knows are curretly playable
+        known_is_playable = np.array(
+            [
+                knowledge.playability(self.table) == 1
+                for knowledge in self.players_knowledge[player_name]
+            ]
+        )
+        # Try give color hint with unknown-playable cards, without including unplayable
+        # Column 0: Color, Column 1: Informativity. Column 2: Misinformativity
+        informativity = np.array([5, 3])
+        for i, color in enumerate(COLORS):
+            # Card of given color
+            cards_of_color = np.array(
+                [card.color == color for card in self.player_cards[player_name]]
+            )
+            informativity[i, 0] = i
+            informativity[i, 1] = np.sum(
+                np.logical_not(known_is_playable) & really_playables & cards_of_color
+            )
+            informativity[i, 2] = np.logical_not(really_playables) & cards_of_color
+        # Most informative without misinformations
+        non_mis = informativity[informativity[:, 2] == 0]
+        best_color_hint = np.zeros([3])
+        if non_mis.shape[0] != 0:
+            best_color_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
+        # Avoid giving hint that could be interpreted as warnings (avoid precious cards)
+        next_discard = self._next_discard_index(player_name)
+        value_to_avoid = -1
+        if next_discard is not None:
+            value_to_avoid = self.player_cards[player_name][next_discard].value
+            knowledge = self.players_knowledge[player_name][next_discard]
+            if knowledge.preciousness(
+                self.table, self._count_cards_in_hands()
+            ) == 0 and knowledge.can_be(None, value_to_avoid):
+                value_to_avoid = -1
+
+        # Try give a value hint
+        for i, value in enumerate(range(1, 6)):
+            if value_to_avoid:
+                informativity[i] = np.array([i, 0, 100])
+                continue
+            cards_of_value = np.array(
+                [card.value == value for card in self.player_cards[player_name]]
+            )
+            informativity[i, 0] = value
+            informativity[i, 1] = np.sum(
+                np.logical_not(known_is_playable) & really_playables & cards_of_value
+            )
+            informativity[i, 2] = np.logical_not(really_playables) & cards_of_value
+        # Most informative without misinformations
+        non_mis = informativity[informativity[:, 2] == 0]
+        best_value_hint = np.zeros([3])
+        if non_mis.shape[0] != 0:
+            best_value_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
+
+        if best_value_hint[1] > best_color_hint[1]:
+            return Hint("value", best_value_hint.item(0), best_value_hint.item(1))
+        return Hint("color", best_color_hint.item(0), best_color_hint.item(1))
+
+    def _maybe_give_valuable_warning(self) -> bool:
+        next_player_index = (self.players.index(self.player_name) + 1) % len(
+            self.players
+        )
+        next_player = self.players[next_player_index]
+        discard_index = self._next_discard_index(next_player)
+        # Player knows which card to play/discard
+        if discard_index is None:
+            return False
+        discard_card = self.player_cards[next_player][discard_index]
+        valuables = self._valuable_mask_of_player(next_player)
+        # Player wants to discard a useless card
+        if not valuables[COLORS.index(discard_card.color), discard_card.value - 1]:
+            return False
+        # Cannot give any hint
+        if self.remaining_hints == 0:
+            return False
+        hint = self._best_hint_for(next_player)
+        # Found an hint to suggest player another action
+        if hint.informativity > 0:
+            self._give_hint(next_player, hint.type, hint.value)
+            return True
+        # Necessary to give a warning
+        self._give_hint(next_player, "value", discard_card.value)
+        return True
 
     def run(self) -> None:
         super().run()
