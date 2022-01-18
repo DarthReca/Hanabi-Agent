@@ -1,10 +1,12 @@
+from logging import handlers
 import game
 from .player import Player
-from constants import COLORS, INITIAL_DECK, DATASIZE
+from constants import COLORS
 import GameData
 from typing import List, Dict, Set, Tuple
 from itertools import chain
 import numpy as np
+import logging
 
 
 class Table:
@@ -45,12 +47,26 @@ class Table:
 class Bot(Player):
     def __init__(self, host: str, port: int, player_name: str) -> None:
         super().__init__(host, port, player_name)
+        self.logger = logging.getLogger(self.player_name)
         self.players = []  # type: List[str]
         self.turn_of = ""
         self.remaining_hints = 8
+        self.lives = 3
         self.table = Table()
         self.player_cards = {}  # type: Dict[str, List[game.Card]]
         self.need_info = False
+        # Logger
+        formatter = logging.Formatter("%(levelname)s: %(message)s")
+        handler = logging.FileHandler(f"{self.player_name}.log", "w+")
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
+
+    def _next_player(self) -> str:
+        next_player_index = (self.players.index(self.player_name) + 1) % len(
+            self.players
+        )
+        return self.players[next_player_index]
 
     def _cards_to_ndarray(self, *cards: game.Card):
         """Create an array that count the occurences of each card type."""
@@ -69,6 +85,7 @@ class Bot(Player):
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
         self.remaining_hints = 8 - infos.usedNoteTokens
+        self.lives = 3 - infos.usedStormTokens
         # Update possible cards
         for player in infos.players:
             self.player_cards[player.name] = player.hand

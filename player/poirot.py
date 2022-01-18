@@ -249,10 +249,7 @@ class Poirot(Bot):
         return Hint("color", best_color_hint.item(0), best_color_hint.item(1))
 
     def _maybe_give_valuable_warning(self) -> bool:
-        next_player_index = (self.players.index(self.player_name) + 1) % len(
-            self.players
-        )
-        next_player = self.players[next_player_index]
+        next_player = self._next_player()
         discard_index = self._next_discard_index(next_player)
         # Player knows which card to play/discard
         if discard_index is None:
@@ -273,6 +270,71 @@ class Poirot(Bot):
         # Necessary to give a warning
         self._give_hint(next_player, "value", discard_card.value)
         return True
+
+    def _maybe_give_helpful_hint(self) -> bool:
+        if self.remaining_hints == 0:
+            return False
+        hints = [(player, self._best_hint_for(player)) for player in self.players]
+        best = max(hints, key=lambda x: x[1].informativity)
+        if best[1].informativity == 0:
+            return False
+        self._give_hint(best[0], best[1].type, best[1].value)
+        return True
+
+    def _maybe_play_unknown(self) -> bool:
+        player_knowledge = self.players_knowledge[self.player_name]
+        for i, knowledge in enumerate(reversed(player_knowledge)):
+            if knowledge.playability(self.table) != 0:
+                self._play(len(player_knowledge) - 1 - i)
+                return True
+        return False
+
+    def _maybe_discard_old_card(self) -> bool:
+        remaining_cards = np.sum(
+            INITIAL_DECK - self._count_cards_in_hands() - self.table.total_table_card()
+        )
+        # Cards in hand
+        remaining_cards -= 5
+        if remaining_cards <= 1:
+            for i, knowledge in enumerate(self.players_knowledge[self.player_name]):
+                if (
+                    knowledge.preciousness(self.table, self._count_cards_in_hands())
+                    == 0
+                ):
+                    self._discard(i)
+                    return True
+        return False
+
+    def _discard_less_precious(self):
+        cards_in_hands = self._count_cards_in_hands()
+        preciousness = [
+            knowledge.preciousness(self.table, cards_in_hands)
+            for knowledge in self.players_knowledge[self.player_name]
+        ]
+        less_precious = preciousness.index(min(preciousness))
+        self._discard(less_precious)
+
+    def _make_action(self) -> None:
+        if self._maybe_give_valuable_warning():
+            return
+        if self._maybe_play_lowest_value():
+            return
+        if self._maybe_give_helpful_hint():
+            return
+        # Try discard if possible, otherwise give value hint on oldest card
+        if self.remaining_hints == 8:
+            next_player = self._next_player()
+            oldest_card = self.player_cards[next_player][0]
+            self._give_hint(next_player, "value", oldest_card.value)
+        else:
+            if self._maybe_discard_useless():
+                return
+            if self._maybe_discard_old_card():
+                return
+            self._discard_less_precious()
+            return
+
+        self._maybe_play_unknown()
 
     def run(self) -> None:
         super().run()
@@ -296,3 +358,5 @@ class Poirot(Bot):
                 if self.need_info:
                     self._get_infos()
                     self.need_info = False
+                else:
+                    self._make_action()
