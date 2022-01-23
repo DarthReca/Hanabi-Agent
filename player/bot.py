@@ -23,7 +23,7 @@ class Table:
 
     def set_table(self, table: Dict[str, List[game.Card]]):
         for card in chain(*table.values()):
-            self.table[COLORS.index(card.color), card.value - 1] = 1
+            self.table_array[COLORS.index(card.color), card.value - 1] = 1
 
     def next_playable_cards(self) -> Set[Tuple[str, int]]:
         colors, values = np.nonzero(self.next_playable_mask())

@@ -1,17 +1,32 @@
 # Data to be passed from client to server
 import pickle
 
+from constants import DATASIZE
+
 # Generic object
 class GameData(object):
     def __init__(self, sender) -> None:
         super().__init__()
         self.sender = sender
 
-    def serialize(self) -> str:
-        return pickle.dumps(self)
+    def serialize(self) -> bytes:
+        data = pickle.dumps(self)
+        datalen = len(data)
+        binaryDataLen: bytes  = datalen.to_bytes(2, 'little')
+        totdata = bytearray(binaryDataLen) + data
+        #ensure no multiple data on same request
+        for _ in range(datalen + len(binaryDataLen), DATASIZE):
+            totdata.append(0)
+        data = bytes(totdata)
+        assert(len(data) == DATASIZE)
+        return data
 
-    def deserialize(serialized: str):
-        return pickle.loads(serialized)
+    def deserialize(serialized: bytes):
+        binarySize = serialized[0:2]
+        assert(len(binarySize) == 2)
+        datasize = int.from_bytes(binarySize, 'little')
+        data = serialized[2:datasize + 2]
+        return pickle.loads(data)
 
 
 # Client to server
@@ -161,6 +176,7 @@ class ServerGameStateData(ServerToClientData):
     '''
     Shows the game state to the players.
     currentPlayer: the name of the player that should play right now.
+    handSize: the number of cards in the hand of the current player
     players: the list of players in turn order.
     usedNoteTokens: used blue (note) tokens. 0 is the minimum, 8 is the maximum.
     usedStormTokens: used red (storm) tokens. 0 is the minimum, 3 is the maximum. At 3 the game is over.
@@ -168,9 +184,10 @@ class ServerGameStateData(ServerToClientData):
     discardPile: shows the discard pile.
     NOTE: params might get added on request, if the game allows for it.
     '''
-    def __init__(self, currentPlayer: str, players: list, usedNoteTokens: int, usedStormTokens: int, table: list, discard: list) -> None:
+    def __init__(self, currentPlayer: str, handSize: int, players: list, usedNoteTokens: int, usedStormTokens: int, table: list, discard: list) -> None:
         action = "Show cards response"
         self.currentPlayer = currentPlayer
+        self.handSize = handSize
         self.players = players
         self.usedNoteTokens = usedNoteTokens
         self.usedStormTokens = usedStormTokens
