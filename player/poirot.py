@@ -1,5 +1,6 @@
 import enum
 import re
+from time import sleep
 from .bot import Bot, Table
 import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
@@ -8,6 +9,7 @@ import GameData
 from itertools import product
 from game import Card
 from collections import namedtuple
+from socket import timeout
 
 Hint = namedtuple("Hint", ["type", "value", "informativity"])
 
@@ -18,10 +20,10 @@ class CardKnowledge:
         self.canbe = np.ones([5, 5], dtype=np.bool8)
 
     def possible_values(self) -> np.ndarray:
-        return np.nonzero(self.can_be == True)[1] + 1
+        return {i + 1 for i in np.nonzero(self.canbe == True)[1]}
 
     def possible_colors(self) -> Set[str]:
-        return {COLORS[c] for c in np.nonzero(self.can_be == True)[0]}
+        return {COLORS[c] for c in np.nonzero(self.canbe == True)[0]}
 
     def set_suggested_color(self, color: str):
         index = COLORS.index(color)
@@ -58,11 +60,11 @@ class CardKnowledge:
 
     def playability(self, table: Table) -> float:
         """Probability the card is currently playable"""
-        return np.sum(self.can_be & table.next_playables_mask()) / np.sum(self.can_be)
+        return np.sum(self.canbe & table.next_playables_mask()) / np.sum(self.canbe)
 
     def usability(self, table: Table) -> float:
         """Probability the card can still be played"""
-        return np.sum(self.can_be & table.playables_mask()) / np.sum(self.can_be)
+        return np.sum(self.canbe & table.playables_mask()) / np.sum(self.canbe)
 
     def is_known(self) -> bool:
         return len(self.possible_colors()) == 1 and self.possible_values().shape[0] == 1
@@ -72,6 +74,7 @@ class Poirot(Bot):
     def __init__(self, host: str, port: int, player_name: str) -> None:
         super().__init__(host, port, player_name)
         self.players_knowledge = {self.player_name: [CardKnowledge() for _ in range(5)]}
+        self.socket.settimeout(10)
 
     def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
         super()._process_game_start(action)
@@ -110,6 +113,7 @@ class Poirot(Bot):
             possibility.remove_cards(
                 self._count_cards_in_hands() + self.table.total_table_card()
             )
+        self.need_info = False
 
     def _delete_knowledge(self, player_name: str, index: int):
         self.players_knowledge[player_name].pop(index)
@@ -146,8 +150,13 @@ class Poirot(Bot):
             key=lambda x: np.min(x.possible_values()),
         )
         card_index = self.players_knowledge[self.player_name].index(knowledge)
+
+        self.logger.info(
+            f"Playing card n. {card_index}: {knowledge.possible_colors()} | {knowledge.possible_values()}"
+        )
+
         self._play(card_index)
-        self._delete_knowledge(card_index)
+        self._delete_knowledge(self.player_name, card_index)
         return True
 
     def _maybe_discard_useless(self) -> bool:
@@ -161,6 +170,11 @@ class Poirot(Bot):
             return False
         # Discard oldest
         card_index = self.players_knowledge[self.player_name].index(discardable[0])
+
+        self.logger.info(
+            f"Discarding card n. {card_index}: {discardable[0].possible_colors()} | {discardable[0].possible_values()}"
+        )
+
         self._discard(card_index)
         self._delete_knowledge(card_index)
         return True
@@ -187,18 +201,20 @@ class Poirot(Bot):
             [
                 (card.color, card.value) in self.table.next_playable_cards()
                 for card in self.player_cards[player_name]
-            ]
+            ],
+            dtype=np.bool8,
         )
         # Cards `player_name` knows are curretly playable
         known_is_playable = np.array(
             [
                 knowledge.playability(self.table) == 1
                 for knowledge in self.players_knowledge[player_name]
-            ]
+            ],
+            dtype=np.bool8,
         )
         # Try give color hint with unknown-playable cards, without including unplayable
         # Column 0: Color, Column 1: Informativity. Column 2: Misinformativity
-        informativity = np.array([5, 3])
+        informativity = np.empty([5, 3], dtype=np.uint8)
         for i, color in enumerate(COLORS):
             # Card of given color
             cards_of_color = np.array(
@@ -208,10 +224,12 @@ class Poirot(Bot):
             informativity[i, 1] = np.sum(
                 np.logical_not(known_is_playable) & really_playables & cards_of_color
             )
-            informativity[i, 2] = np.logical_not(really_playables) & cards_of_color
+            informativity[i, 2] = np.sum(
+                np.logical_not(really_playables) & cards_of_color
+            )
         # Most informative without misinformations
         non_mis = informativity[informativity[:, 2] == 0]
-        best_color_hint = np.zeros([3])
+        best_color_hint = np.zeros([3], dtype=np.uint8)
         if non_mis.shape[0] != 0:
             best_color_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
         # Avoid giving hint that could be interpreted as warnings (avoid precious cards)
@@ -227,7 +245,7 @@ class Poirot(Bot):
 
         # Try give a value hint
         for i, value in enumerate(range(1, 6)):
-            if value_to_avoid:
+            if value_to_avoid == value:
                 informativity[i] = np.array([i, 0, 100])
                 continue
             cards_of_value = np.array(
@@ -237,16 +255,18 @@ class Poirot(Bot):
             informativity[i, 1] = np.sum(
                 np.logical_not(known_is_playable) & really_playables & cards_of_value
             )
-            informativity[i, 2] = np.logical_not(really_playables) & cards_of_value
+            informativity[i, 2] = np.sum(
+                np.logical_not(really_playables) & cards_of_value
+            )
         # Most informative without misinformations
         non_mis = informativity[informativity[:, 2] == 0]
-        best_value_hint = np.zeros([3])
+        best_value_hint = np.zeros([3], dtype=np.uint8)
         if non_mis.shape[0] != 0:
             best_value_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
 
         if best_value_hint[1] > best_color_hint[1]:
             return Hint("value", best_value_hint.item(0), best_value_hint.item(1))
-        return Hint("color", best_color_hint.item(0), best_color_hint.item(1))
+        return Hint("color", COLORS[best_color_hint.item(0)], best_color_hint.item(1))
 
     def _maybe_give_valuable_warning(self) -> bool:
         next_player = self._next_player()
@@ -267,6 +287,9 @@ class Poirot(Bot):
         if hint.informativity > 0:
             self._give_hint(next_player, hint.type, hint.value)
             return True
+        self.logger.info(
+            f"Warning to {next_player} for card {discard_card.color}:{discard_card.value}"
+        )
         # Necessary to give a warning
         self._give_hint(next_player, "value", discard_card.value)
         return True
@@ -274,17 +297,33 @@ class Poirot(Bot):
     def _maybe_give_helpful_hint(self) -> bool:
         if self.remaining_hints == 0:
             return False
-        hints = [(player, self._best_hint_for(player)) for player in self.players]
+        hints = [
+            (player, self._best_hint_for(player))
+            for player in self.players
+            if player != self.player_name
+        ]
         best = max(hints, key=lambda x: x[1].informativity)
         if best[1].informativity == 0:
             return False
+        self.logger.info(f"Giving hint to {best[0]}: {repr(best[1])}")
         self._give_hint(best[0], best[1].type, best[1].value)
         return True
 
     def _maybe_play_unknown(self) -> bool:
+        remaining = np.sum(
+            INITIAL_DECK
+            - self.table.total_table_card()
+            - self._count_cards_in_hands()
+            - 5
+        )
+        if remaining > 3:
+            return False
         player_knowledge = self.players_knowledge[self.player_name]
         for i, knowledge in enumerate(reversed(player_knowledge)):
             if knowledge.playability(self.table) != 0:
+                self.logger.info(
+                    f"Playing unknown {len(player_knowledge) - 1 - i}: {knowledge.possible_colors()} | {knowledge.possible_values()}"
+                )
                 self._play(len(player_knowledge) - 1 - i)
                 return True
         return False
@@ -301,6 +340,9 @@ class Poirot(Bot):
                     knowledge.preciousness(self.table, self._count_cards_in_hands())
                     == 0
                 ):
+                    self.logger.info(
+                        f"Discarding old {i}: {knowledge.possible_colors()} | {knowledge.possible_values()} "
+                    )
                     self._discard(i)
                     return True
         return False
@@ -312,6 +354,10 @@ class Poirot(Bot):
             for knowledge in self.players_knowledge[self.player_name]
         ]
         less_precious = preciousness.index(min(preciousness))
+        selected_card = self.players_knowledge[self.player_name][less_precious]
+        self.logger.info(
+            f"Discard less precious {less_precious}: {selected_card.possible_colors()} | {selected_card.possible_values()}"
+        )
         self._discard(less_precious)
 
     def _make_action(self) -> None:
@@ -320,6 +366,8 @@ class Poirot(Bot):
         if self._maybe_play_lowest_value():
             return
         if self._maybe_give_helpful_hint():
+            return
+        if self._maybe_play_unknown():
             return
         # Try discard if possible, otherwise give value hint on oldest card
         if self.remaining_hints == 8:
@@ -334,16 +382,24 @@ class Poirot(Bot):
             self._discard_less_precious()
             return
 
-        self._maybe_play_unknown()
-
     def run(self) -> None:
         super().run()
         while True:
-            data = self.socket.recv(DATASIZE)
-            data = GameData.GameData.deserialize(data)
+            try:
+                data = self.socket.recv(DATASIZE)
+                data = GameData.GameData.deserialize(data)
+            except timeout:
+                if (
+                    type(data) is GameData.ServerGameStateData
+                    and data.currentPlayer == self.player_name
+                ):
+                    self._make_action()
             # Process infos
             if type(data) is GameData.ServerPlayerStartRequestAccepted:
-                self._process_start_request(data)
+                if data.connectedPlayers == 2:
+                    self._player_ready()
+            if type(data) is GameData.ServerPlayerThunderStrike:
+                self._process_error(data)
             if type(data) is GameData.ServerStartGameData:
                 self._process_game_start(data)
             if type(data) is GameData.ServerActionValid:
@@ -352,6 +408,14 @@ class Poirot(Bot):
                 self._elaborate_hint(data)
             if type(data) is GameData.ServerGameStateData:
                 self._update_infos(data)
+            if type(data) is GameData.ServerPlayerMoveOk:
+                self._process_played_card(data)
+            if type(data) is GameData.ServerActionInvalid:
+                self._process_invalid(data)
+                self.need_info = True
+            if type(data) is GameData.ServerGameOver:
+                self._process_game_over(data)
+                break
             # Exec bot turn
             if self.turn_of == self.player_name:
                 print("My turn")
