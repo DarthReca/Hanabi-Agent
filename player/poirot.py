@@ -83,6 +83,7 @@ class Poirot(Bot):
             self.players_knowledge[player] = [CardKnowledge() for _ in range(5)]
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
+        self.logger.info(f"Hint of {hint.source} for {hint.destination}")
         self.turn_of = hint.player
         self.need_info = True
         for i in hint.positions:
@@ -269,7 +270,7 @@ class Poirot(Bot):
         return Hint("color", COLORS[best_color_hint.item(0)], best_color_hint.item(1))
 
     def _maybe_give_valuable_warning(self) -> bool:
-        next_player = self._next_player()
+        next_player = self._next_player(self.player_name)
         discard_index = self._next_discard_index(next_player)
         # Player knows which card to play/discard
         if discard_index is None:
@@ -371,7 +372,7 @@ class Poirot(Bot):
             return
         # Try discard if possible, otherwise give value hint on oldest card
         if self.remaining_hints == 8:
-            next_player = self._next_player()
+            next_player = self._next_player(self.player_name)
             oldest_card = self.player_cards[next_player][0]
             self._give_hint(next_player, "value", oldest_card.value)
         else:
@@ -388,12 +389,10 @@ class Poirot(Bot):
             try:
                 data = self.socket.recv(DATASIZE)
                 data = GameData.GameData.deserialize(data)
-            except timeout:
-                if (
-                    type(data) is GameData.ServerGameStateData
-                    and data.currentPlayer == self.player_name
-                ):
-                    self._make_action()
+            except:
+                print("Timeout")
+                self._get_infos()
+                continue
             # Process infos
             if type(data) is GameData.ServerPlayerStartRequestAccepted:
                 if data.connectedPlayers == 2:
@@ -418,8 +417,8 @@ class Poirot(Bot):
                 break
             # Exec bot turn
             if self.turn_of == self.player_name:
-                print("My turn")
                 if self.need_info:
+                    self.logger.info(f"Making turn of {self.turn_of}")
                     self._get_infos()
                     self.need_info = False
                 else:

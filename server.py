@@ -31,7 +31,7 @@ def manageConnection(conn: socket, addr):
         keepActive = True
         playerName = ""
         while keepActive:
-            print("SERVER WAITING")
+            print(f"SERVER WAITING {mutex.locked()}")
             data = conn.recv(DATASIZE)
             mutex.acquire(True)
             if not data:
@@ -121,6 +121,7 @@ def manageConnection(conn: socket, addr):
                         commandQueue[playerName].append(data)
                 # In game
                 elif status == "Game":
+                    print("Satisfying request...")
                     singleData, multipleData = game.satisfyRequest(data, playerName)
                     if singleData is not None:
                         conn.send(singleData.serialize())

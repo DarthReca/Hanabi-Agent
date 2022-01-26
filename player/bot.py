@@ -61,12 +61,10 @@ class Bot(Player):
         handler = logging.FileHandler(f"{self.player_name}.log", "w+")
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
-    def _next_player(self) -> str:
-        next_player_index = (self.players.index(self.player_name) + 1) % len(
-            self.players
-        )
+    def _next_player(self, player_name: str) -> str:
+        next_player_index = (self.players.index(player_name) + 1) % len(self.players)
         return self.players[next_player_index]
 
     def _cards_to_ndarray(self, *cards: game.Card):
@@ -84,7 +82,7 @@ class Bot(Player):
         return total
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
-        self.turn_of = infos.currentPlayer
+        self.logger.debug("Received infos...")
         self.remaining_hints = 8 - infos.usedNoteTokens
         self.lives = 3 - infos.usedStormTokens
         # Update possible cards
@@ -117,12 +115,6 @@ class Bot(Player):
         self.logger.info(
             f"Starting game with {len(action.players)}. Turn of {self.turn_of}"
         )
-
-    def _pass_turn(self):
-        if not self.players:
-            return
-        next_player = (self.players.index(self.turn_of) + 1) % len(self.players)
-        self.turn_of = self.players[next_player]
 
     def _process_game_over(self, data: GameData.ServerGameOver):
         self.logger.info("Score: " + data.score)

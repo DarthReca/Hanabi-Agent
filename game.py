@@ -12,10 +12,17 @@ class Card(object):
         self.color = color
 
     def toString(self):
-        return ("Card " + str(self.id) + "; value: " + str(self.value) + "; color: " + str(self.color))
+        return (
+            "Card "
+            + str(self.id)
+            + "; value: "
+            + str(self.value)
+            + "; color: "
+            + str(self.color)
+        )
 
     def toClientString(self):
-        return ("Card " + str(self.value) + " - " + str(self.color))
+        return "Card " + str(self.value) + " - " + str(self.color)
 
     def __hash__(self):
         return self.id
@@ -33,7 +40,7 @@ class Token(object):
         self.flipped = False
 
     def toString(self):
-        return ("Token " + self.type + "; Flipped: " + str(self.flipped))
+        return "Token " + self.type + "; Flipped: " + str(self.flipped)
 
 
 class Player(object):
@@ -51,14 +58,14 @@ class Player(object):
         for card in self.hand:
             c += "\t" + card.toString() + " \n\t"
         c += " ]"
-        return ("Player " + self.name + " { \n\tcards: " + c + "\n}")
+        return "Player " + self.name + " { \n\tcards: " + c + "\n}"
 
     def toClientString(self):
         c = "[ \n\t"
         for card in self.hand:
             c += "\t" + card.toClientString() + " \n\t"
         c += " ]"
-        return ("Player " + self.name + " { \n\tcards: " + c + "\n}")
+        return "Player " + self.name + " { \n\tcards: " + c + "\n}"
 
 
 class Game(object):
@@ -71,7 +78,7 @@ class Game(object):
         "Good!",
         "Outstanding!",
         "AMAZING!",
-        "YOU'RE THE BEST!"
+        "YOU'RE THE BEST!",
     ]
     __cards = []  # cards are the same for everyone
     __MAX_NOTE_TOKENS = 8
@@ -146,7 +153,7 @@ class Game(object):
             "yellow": [],
             "green": [],
             "blue": [],
-            "white": []
+            "white": [],
         }
 
         ###
@@ -167,9 +174,15 @@ class Game(object):
         # score
         self.__score = 0
         # add actions for each class of data
-        self.__dataActions[GameData.ClientPlayerDiscardCardRequest] = self.__satisfyDiscardRequest
-        self.__dataActions[GameData.ClientGetGameStateRequest] = self.__satisfyShowCardRequest
-        self.__dataActions[GameData.ClientPlayerPlayCardRequest] = self.__satisfyPlayCardRequest
+        self.__dataActions[
+            GameData.ClientPlayerDiscardCardRequest
+        ] = self.__satisfyDiscardRequest
+        self.__dataActions[
+            GameData.ClientGetGameStateRequest
+        ] = self.__satisfyShowCardRequest
+        self.__dataActions[
+            GameData.ClientPlayerPlayCardRequest
+        ] = self.__satisfyPlayCardRequest
         self.__dataActions[GameData.ClientHintData] = self.__satisfyHintRequest
 
     # Request satisfaction methods
@@ -180,6 +193,7 @@ class Game(object):
         if type(data) in self.__dataActions:
             if type(data) == GameData.ClientGetGameStateRequest:
                 data.sender = playerName
+            print("Doing something")
             result = self.__dataActions[type(data)](data)
             if type(data) != GameData.ClientGetGameStateRequest:
                 if len(self.__cardsToDraw) == 0:
@@ -189,13 +203,24 @@ class Game(object):
             if self.__gameOver:
                 logging.info("Game over, people.")
                 logging.info("Please, close the server now")
-                logging.info("Score: " + str(self.__score) + "; message: " +
-                             self.__scoreMessages[self.__score // len(self.__scoreMessages)])  # ! BUGFIX index
+                logging.info(
+                    "Score: "
+                    + str(self.__score)
+                    + "; message: "
+                    + self.__scoreMessages[self.__score // len(self.__scoreMessages)]
+                )  # ! BUGFIX index
                 # ! BUGFIX index
-                return (None, GameData.ServerGameOver(self.__score, self.__scoreMessages[self.__score // len(self.__scoreMessages)]))
+                return (
+                    None,
+                    GameData.ServerGameOver(
+                        self.__score,
+                        self.__scoreMessages[self.__score // len(self.__scoreMessages)],
+                    ),
+                )
             return result
         else:
             return GameData.ServerInvalidDataReceived(data), None
+
     # Draw request
 
     def __satisfyDiscardRequest(self, data: GameData.ClientPlayerDiscardCardRequest):
@@ -203,19 +228,38 @@ class Game(object):
         # It's the right turn to perform an action
         if player.name == data.sender:
             if data.handCardOrdered >= len(player.hand) or data.handCardOrdered < 0:
-                return (GameData.ServerActionInvalid("You don't have that many cards!"), None)
+                return (
+                    GameData.ServerActionInvalid("You don't have that many cards!"),
+                    None,
+                )
             card: Card = player.hand[data.handCardOrdered]
             if not self.__discardCard(card.id, player.name):
                 logging.warning(
-                    "Impossible discarding a card: there is no used token available")
+                    "Impossible discarding a card: there is no used token available"
+                )
                 return (GameData.ServerActionInvalid("You have no used tokens"), None)
             else:
                 self.__drawCard(player.name)
-                logging.info("Player: " + self.__getCurrentPlayer().name +
-                             ": card " + str(card.id) + " discarded successfully")
+                logging.info(
+                    "Player: "
+                    + self.__getCurrentPlayer().name
+                    + ": card "
+                    + str(card.id)
+                    + " discarded successfully"
+                )
                 self.__nextTurn()
                 # ! ADDED last param. see GameData relative comment in ServerActionValid
-                return (None, GameData.ServerActionValid(self.__getCurrentPlayer().name, player.name, "discard", card, data.handCardOrdered, len(player.hand)))
+                return (
+                    None,
+                    GameData.ServerActionValid(
+                        self.__getCurrentPlayer().name,
+                        player.name,
+                        "discard",
+                        card,
+                        data.handCardOrdered,
+                        len(player.hand),
+                    ),
+                )
         else:
             return (GameData.ServerActionInvalid("It is not your turn yet"), None)
 
@@ -223,7 +267,18 @@ class Game(object):
     def __satisfyShowCardRequest(self, data: GameData.ClientGetGameStateRequest):
         logging.info("Showing hand to: " + data.sender)
         currentPlayer, playerList, playerHandSize = self.__getPlayersStatus(data.sender)
-        return (GameData.ServerGameStateData(currentPlayer, playerHandSize, playerList, self.__noteTokens, self.__stormTokens, self.__tableCards, self.__discardPile), None)
+        return (
+            GameData.ServerGameStateData(
+                currentPlayer,
+                playerHandSize,
+                playerList,
+                self.__noteTokens,
+                self.__stormTokens,
+                self.__tableCards,
+                self.__discardPile,
+            ),
+            None,
+        )
 
     # Play card request
 
@@ -232,17 +287,31 @@ class Game(object):
         # it's the right turn to perform an action
         if p.name == data.sender:
             if data.handCardOrdered >= len(p.hand) or data.handCardOrdered < 0:
-                return (GameData.ServerActionInvalid("You don't have that many cards!"), None)
+                return (
+                    GameData.ServerActionInvalid("You don't have that many cards!"),
+                    None,
+                )
             card: Card = p.hand[data.handCardOrdered]
             self.__playCard(p.name, data.handCardOrdered)
             ok = self.__checkTableCards()
             if not ok:
                 self.__nextTurn()
                 # ! ADDED last param. see GameData relative comment of GameData.ServerPlayerThunderStrike
-                return (None, GameData.ServerPlayerThunderStrike(self.__getCurrentPlayer().name, p.name, card, data.handCardOrdered, len(p.hand)))
+                return (
+                    None,
+                    GameData.ServerPlayerThunderStrike(
+                        self.__getCurrentPlayer().name,
+                        p.name,
+                        card,
+                        data.handCardOrdered,
+                        len(p.hand),
+                    ),
+                )
             else:
-                logging.info(self.__getCurrentPlayer().name +
-                             ": card played and correctly put on the table")
+                logging.info(
+                    self.__getCurrentPlayer().name
+                    + ": card played and correctly put on the table"
+                )
                 if card.value == 5:
                     logging.info(card.color + " pile has been filled.")
                     if self.__noteTokens > 0:
@@ -250,7 +319,16 @@ class Game(object):
                         logging.info("Giving 1 free note token.")
                 self.__nextTurn()
                 # ! ADDED last param. see GameData relative comment of GameData.ServerPlayerMoveOk
-                return (None, GameData.ServerPlayerMoveOk(self.__getCurrentPlayer().name, p.name, card, data.handCardOrdered, len(p.hand)))
+                return (
+                    None,
+                    GameData.ServerPlayerMoveOk(
+                        self.__getCurrentPlayer().name,
+                        p.name,
+                        card,
+                        data.handCardOrdered,
+                        len(p.hand),
+                    ),
+                )
         else:
             return (GameData.ServerActionInvalid("It is not your turn yet"), None)
 
@@ -259,11 +337,20 @@ class Game(object):
         if self.__getCurrentPlayer().name != data.sender:
             return (GameData.ServerActionInvalid("It is not your turn yet"), None)
         if data.destination == data.sender:
-            return (GameData.ServerActionInvalid("You are giving a suggestion to yourself! Bad!"), None)
+            return (
+                GameData.ServerActionInvalid(
+                    "You are giving a suggestion to yourself! Bad!"
+                ),
+                None,
+            )
         if self.__noteTokens == self.__MAX_NOTE_TOKENS:
             logging.warning(
-                "All the note tokens have been used. Impossible getting hints")
-            return GameData.ServerActionInvalid("All the note tokens have been used"), None
+                "All the note tokens have been used. Impossible getting hints"
+            )
+            return (
+                GameData.ServerActionInvalid("All the note tokens have been used"),
+                None,
+            )
         positions = []
         destPlayer: Player = None
         for p in self.__players:
@@ -271,7 +358,12 @@ class Game(object):
                 destPlayer = p
                 break
         if destPlayer is None:
-            return GameData.ServerInvalidDataReceived(data="The selected player does not exist"), None
+            return (
+                GameData.ServerInvalidDataReceived(
+                    data="The selected player does not exist"
+                ),
+                None,
+            )
 
         for i in range(len(destPlayer.hand)):
             if data.type == "color" or data.type == "colour":
@@ -286,16 +378,44 @@ class Game(object):
                 return GameData.ServerInvalidDataReceived(data=data.type), None
             if data.sender == data.destination:
                 self.__noteTokens -= 1
-                return GameData.ServerInvalidDataReceived(data="Sender cannot be destination!"), None
+                return (
+                    GameData.ServerInvalidDataReceived(
+                        data="Sender cannot be destination!"
+                    ),
+                    None,
+                )
 
         if len(positions) == 0:
-            return GameData.ServerInvalidDataReceived(data="You cannot give hints about cards that the other person does not have"), None
+            return (
+                GameData.ServerInvalidDataReceived(
+                    data="You cannot give hints about cards that the other person does not have"
+                ),
+                None,
+            )
         self.__nextTurn()
         self.__noteTokens += 1
-        logging.info("Player " + data.sender + " providing hint to " + data.destination +
-                     ": cards with " + data.type + " " + str(data.value) + " are in positions: " + str(positions))
+        logging.info(
+            "Player "
+            + data.sender
+            + " providing hint to "
+            + data.destination
+            + ": cards with "
+            + data.type
+            + " "
+            + str(data.value)
+            + " are in positions: "
+            + str(positions)
+        )
+        logging.info(f"Now turn of {self.__getCurrentPlayer().name}")
         # ! ADDED last param. see GameData relative comment
-        return None, GameData.ServerHintData(data.sender, data.destination, data.type, data.value, positions, self.__getCurrentPlayer().name)
+        return None, GameData.ServerHintData(
+            data.sender,
+            data.destination,
+            data.type,
+            data.value,
+            positions,
+            self.__getCurrentPlayer().name,
+        )
 
     def isGameOver(self):
         return self.__gameOver
@@ -397,15 +517,16 @@ class Game(object):
 
     def __playCard(self, playerName: str, cardPosition: int):
         p = self.__getPlayer(playerName)
-        self.__tableCards[p.hand[cardPosition].color].append(
-            p.hand[cardPosition])
+        self.__tableCards[p.hand[cardPosition].color].append(p.hand[cardPosition])
         p.hand.pop(cardPosition)
         if len(self.__cardsToDraw) > 0:
             p.hand.append(self.__cardsToDraw.pop())
 
     def __checkTableCards(self) -> bool:
         for cardPool in self.__tableCards:
-            if len(self.__tableCards[cardPool]) > 0 and self.__tableCards[cardPool][len(self.__tableCards[cardPool]) - 1].value != len(self.__tableCards[cardPool]):
+            if len(self.__tableCards[cardPool]) > 0 and self.__tableCards[cardPool][
+                len(self.__tableCards[cardPool]) - 1
+            ].value != len(self.__tableCards[cardPool]):
                 card = self.__tableCards[cardPool].pop()
                 self.__discardPile.append(card)
                 self.__strikeThunder()
