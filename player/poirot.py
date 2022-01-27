@@ -1,7 +1,6 @@
-import enum
-import re
 from time import sleep
-from .bot import Bot, Table
+from .bot import Bot
+from game_utils import Table, CardKnowledge
 import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
 from typing import Literal, Optional, Tuple, Dict, List, Set
@@ -14,67 +13,11 @@ from socket import timeout
 Hint = namedtuple("Hint", ["type", "value", "informativity"])
 
 
-class CardKnowledge:
-    def __init__(self) -> None:
-        # Rows are colors, Columns are (values - 1)
-        self.canbe = np.ones([5, 5], dtype=np.bool8)
-
-    def possible_values(self) -> np.ndarray:
-        return {i + 1 for i in np.nonzero(self.canbe == True)[1]}
-
-    def possible_colors(self) -> Set[str]:
-        return {COLORS[c] for c in np.nonzero(self.canbe == True)[0]}
-
-    def set_suggested_color(self, color: str):
-        index = COLORS.index(color)
-        mask = np.zeros([5, 5], dtype=np.bool8)
-        mask[index] = True
-        self.canbe &= mask
-
-    def set_suggested_value(self, value: int):
-        index = value - 1
-        mask = np.zeros([5, 5], dtype=np.bool8)
-        mask[:, index] = True
-        self.canbe &= mask
-
-    def remove_cards(self, cards: np.ndarray):
-        self.canbe &= INITIAL_DECK - cards != 0
-
-    def can_be(self, color: Optional[str], value: Optional[int]) -> bool:
-        if color is None and value is None:
-            return True
-        color_index = np.arange(5)
-        value_index = np.arange(5)
-        if not color is None:
-            color_index = COLORS.index(color)
-        if not value is None:
-            value_index = value - 1
-        return np.any(self.canbe[color_index, value_index])
-
-    def preciousness(self, table: Table, players_cards: np.ndarray) -> float:
-        """Probability the card could be a valuable one (it could be the only card of this type)"""
-        valuables = INITIAL_DECK - players_cards - table.total_table_card() == 1
-        return np.sum(self.canbe & valuables & table.playables_mask()) / np.sum(
-            self.canbe
-        )
-
-    def playability(self, table: Table) -> float:
-        """Probability the card is currently playable"""
-        return np.sum(self.canbe & table.next_playables_mask()) / np.sum(self.canbe)
-
-    def usability(self, table: Table) -> float:
-        """Probability the card can still be played"""
-        return np.sum(self.canbe & table.playables_mask()) / np.sum(self.canbe)
-
-    def is_known(self) -> bool:
-        return len(self.possible_colors()) == 1 and self.possible_values().shape[0] == 1
-
-
 class Poirot(Bot):
     def __init__(self, host: str, port: int, player_name: str) -> None:
         super().__init__(host, port, player_name)
         self.players_knowledge = {self.player_name: [CardKnowledge() for _ in range(5)]}
-        self.socket.settimeout(10)
+        # self.socket.settimeout(10)
 
     def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
         super()._process_game_start(action)
@@ -381,7 +324,6 @@ class Poirot(Bot):
             if self._maybe_discard_old_card():
                 return
             self._discard_less_precious()
-            return
 
     def run(self) -> None:
         super().run()
@@ -390,13 +332,9 @@ class Poirot(Bot):
                 data = self.socket.recv(DATASIZE)
                 data = GameData.GameData.deserialize(data)
             except:
-                print("Timeout")
-                self._get_infos()
+                self.logger.warning("Timeout trying to regetting infos")
                 continue
             # Process infos
-            if type(data) is GameData.ServerPlayerStartRequestAccepted:
-                if data.connectedPlayers == 2:
-                    self._player_ready()
             if type(data) is GameData.ServerPlayerThunderStrike:
                 self._process_error(data)
             if type(data) is GameData.ServerStartGameData:
