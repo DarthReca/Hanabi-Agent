@@ -25,6 +25,11 @@ class Poirot(Bot):
         for player in self.players:
             self.players_knowledge[player] = [CardKnowledge() for _ in range(5)]
 
+    def _process_game_over(self, data: GameData.ServerGameOver):
+        super()._process_game_over(data)
+        for player in self.players:
+            self.players_knowledge[player] = [CardKnowledge() for _ in range(5)]
+
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
         self.logger.info(f"Hint of {hint.source} for {hint.destination}")
         self.turn_of = hint.player
@@ -332,8 +337,9 @@ class Poirot(Bot):
                 data = self.socket.recv(DATASIZE)
                 data = GameData.GameData.deserialize(data)
             except:
-                self.logger.warning("Timeout trying to regetting infos")
-                continue
+                self.logger.error("Socket Error")
+                self._disconnect()
+                break
             # Process infos
             if type(data) is GameData.ServerPlayerThunderStrike:
                 self._process_error(data)
@@ -352,7 +358,7 @@ class Poirot(Bot):
                 self.need_info = True
             if type(data) is GameData.ServerGameOver:
                 self._process_game_over(data)
-                break
+                # break
             # Exec bot turn
             if self.turn_of == self.player_name:
                 if self.need_info:

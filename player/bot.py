@@ -22,6 +22,7 @@ class Bot(Player):
         self.table = Table()
         self.player_cards = {}  # type: Dict[str, List[game.Card]]
         self.need_info = False
+        self.games_to_play = 3
         # Logger
         formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
         handler = logging.FileHandler(f"{self.player_name}.log", "w+")
@@ -85,7 +86,17 @@ class Bot(Player):
 
     def _process_game_over(self, data: GameData.ServerGameOver):
         self.logger.info(f"Score: {data.score}")
-        self._disconnect()
+        print("GameOver")
+        self.games_to_play -= 1
+        if self.games_to_play == 0:
+            self._disconnect()
+        self.turn_of = self.players[0]
+        self.remaining_hints = 8
+        self.lives = 3
+        self.table = Table()
+        for k in self.player_cards:
+            self.player_cards[k].clear()
+        self.need_info = True
 
     def _process_invalid(self, data: GameData.ServerActionInvalid):
         self.logger.error(data.message)
