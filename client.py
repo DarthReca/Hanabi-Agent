@@ -24,12 +24,13 @@ if __name__ == "__main__":
         type=str,
         choices=["Poirot", "MrSimple"],
     )
+    parser.add_argument("--epochs", type=int, default=1)
     args = parser.parse_args()
     # Select type of player
     if not args.bot:
         player = player.Human(args.host, args.port, args.player_name)
     elif args.bot == "Poirot":
-        player = player.Poirot(args.host, args.port, args.player_name)
+        player = player.Poirot(args.host, args.port, args.player_name, args.epochs)
     elif args.bot == "MrSimple":
         player = player.MrSimple(args.host, args.port, args.player_name)
 

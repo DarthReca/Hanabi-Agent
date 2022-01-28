@@ -12,7 +12,9 @@ from game_utils import Table
 
 
 class Bot(Player):
-    def __init__(self, host: str, port: int, player_name: str) -> None:
+    def __init__(
+        self, host: str, port: int, player_name: str, games_to_play: int = 1
+    ) -> None:
         super().__init__(host, port, player_name)
         self.logger = logging.getLogger(self.player_name)
         self.players = []  # type: List[str]
@@ -22,7 +24,7 @@ class Bot(Player):
         self.table = Table()
         self.player_cards = {}  # type: Dict[str, List[game.Card]]
         self.need_info = False
-        self.games_to_play = 3
+        self.games_to_play = games_to_play
         # Logger
         formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
         handler = logging.FileHandler(f"{self.player_name}.log", "w+")

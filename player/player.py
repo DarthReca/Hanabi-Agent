@@ -1,9 +1,7 @@
 import socket
-import threading
 from time import sleep
 from typing import Literal
 import GameData, constants
-import sys
 
 
 class Player:
@@ -33,7 +31,6 @@ class Player:
         # Init socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
-        sleep(1)
         # Start connection
         self.socket.send(GameData.ClientPlayerAddData(player_name).serialize())
         data = self.socket.recv(constants.DATASIZE)

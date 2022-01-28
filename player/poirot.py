@@ -14,8 +14,10 @@ Hint = namedtuple("Hint", ["type", "value", "informativity"])
 
 
 class Poirot(Bot):
-    def __init__(self, host: str, port: int, player_name: str) -> None:
-        super().__init__(host, port, player_name)
+    def __init__(
+        self, host: str, port: int, player_name: str, games_to_play: int = 1
+    ) -> None:
+        super().__init__(host, port, player_name, games_to_play)
         self.players_knowledge = {self.player_name: [CardKnowledge() for _ in range(5)]}
         # self.socket.settimeout(10)
 
