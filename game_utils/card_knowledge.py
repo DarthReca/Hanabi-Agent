@@ -10,7 +10,7 @@ class CardKnowledge:
         # Rows are colors, Columns are (values - 1)
         self.canbe = np.ones([5, 5], dtype=np.bool8)
 
-    def possible_values(self) -> np.ndarray:
+    def possible_values(self) -> Set[int]:
         return {i + 1 for i in np.nonzero(self.canbe == True)[1]}
 
     def possible_colors(self) -> Set[str]:
@@ -58,4 +58,4 @@ class CardKnowledge:
         return np.sum(self.canbe & table.playables_mask()) / np.sum(self.canbe)
 
     def is_known(self) -> bool:
-        return len(self.possible_colors()) == 1 and self.possible_values().shape[0] == 1
+        return len(self.possible_colors()) == 1 and len(self.possible_values()) == 1

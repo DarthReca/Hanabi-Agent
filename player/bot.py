@@ -9,6 +9,7 @@ from itertools import chain
 import numpy as np
 import logging
 from game_utils import Table
+import os
 
 
 class Bot(Player):
@@ -51,7 +52,6 @@ class Bot(Player):
         return total
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
-        self.logger.debug("Received infos...")
         self.remaining_hints = 8 - infos.usedNoteTokens
         self.lives = 3 - infos.usedStormTokens
         # Update possible cards
@@ -62,16 +62,15 @@ class Bot(Player):
         self.table.set_discard_pile(infos.discardPile)
 
     def _process_discard(self, action: GameData.ServerActionValid) -> None:
-        self.logger.info(f"{action.lastPlayer} discarded")
         self.turn_of = action.player
         self.need_info = True
 
     def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
-        self.logger.info(f"{action.lastPlayer} played")
         self.turn_of = action.player
         self.need_info = True
 
     def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
+        self.logger.warning("Mistake")
         self.turn_of = action.player
         self.need_info = True
 
@@ -88,10 +87,11 @@ class Bot(Player):
 
     def _process_game_over(self, data: GameData.ServerGameOver):
         self.logger.info(f"Score: {data.score}")
-        print("GameOver")
         self.games_to_play -= 1
+        self.logger.info(f"Remaining games to play: {self.games_to_play}")
         if self.games_to_play == 0:
             self._disconnect()
+            os._exit(0)
         self.turn_of = self.players[0]
         self.remaining_hints = 8
         self.lives = 3

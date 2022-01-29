@@ -5,10 +5,7 @@ import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
 from typing import Literal, Optional, Tuple, Dict, List, Set
 import GameData
-from itertools import product
-from game import Card
 from collections import namedtuple
-from socket import timeout
 
 Hint = namedtuple("Hint", ["type", "value", "informativity"])
 
@@ -33,7 +30,6 @@ class Poirot(Bot):
             self.players_knowledge[player] = [CardKnowledge() for _ in range(5)]
 
     def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
-        self.logger.info(f"Hint of {hint.source} for {hint.destination}")
         self.turn_of = hint.player
         self.need_info = True
         for i in hint.positions:
@@ -48,15 +44,21 @@ class Poirot(Bot):
 
     def _process_discard(self, action: GameData.ServerActionValid) -> None:
         super()._process_discard(action)
-        self._delete_knowledge(action.lastPlayer, action.cardHandIndex)
+        self._delete_knowledge(
+            action.lastPlayer, action.cardHandIndex, action.handLength
+        )
 
     def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
         super()._process_played_card(action)
-        self._delete_knowledge(action.lastPlayer, action.cardHandIndex)
+        self._delete_knowledge(
+            action.lastPlayer, action.cardHandIndex, action.handLength
+        )
 
     def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
         super()._process_error(action)
-        self._delete_knowledge(action.lastPlayer, action.cardHandIndex)
+        self._delete_knowledge(
+            action.lastPlayer, action.cardHandIndex, action.handLength
+        )
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
         super()._update_infos(infos)
@@ -66,12 +68,13 @@ class Poirot(Bot):
             )
         self.need_info = False
 
-    def _delete_knowledge(self, player_name: str, index: int):
+    def _delete_knowledge(self, player_name: str, index: int, new_hand_lenght: int):
         self.players_knowledge[player_name].pop(index)
-        self.players_knowledge[player_name].append(CardKnowledge())
+        if new_hand_lenght != len(self.players_knowledge[player_name]):
+            self.players_knowledge[player_name].append(CardKnowledge())
 
     def _valuable_mask_of_player(self, target_player: str) -> np.ndarray:
-        target_hand = self._cards_to_ndarray(*self.player_cards[target_player])
+        target_hand_mask = self._cards_to_ndarray(*self.player_cards[target_player]) > 0
         # Remove cards in table
         valuables = INITIAL_DECK - self.table.total_table_card()
         # Remove cards in other players hand
@@ -82,10 +85,10 @@ class Poirot(Bot):
         for knowledge in self.players_knowledge[self.player_name]:
             if knowledge.is_known():
                 valuables[
-                    COLORS.index(knowledge.possible_colors()[0]),
-                    knowledge.possible_values().item(0) - 1,
+                    COLORS.index(knowledge.possible_colors().pop()),
+                    knowledge.possible_values().pop() - 1,
                 ] -= 1
-        return valuables == 1 & self.table.playables_mask() & target_hand > 0
+        return (valuables == 1) & self.table.playables_mask() & target_hand_mask
 
     def _maybe_play_lowest_value(self) -> bool:
         """Play a card we are sure can be played with the lowest value possible"""
@@ -107,7 +110,6 @@ class Poirot(Bot):
         )
 
         self._play(card_index)
-        self._delete_knowledge(self.player_name, card_index)
         return True
 
     def _maybe_discard_useless(self) -> bool:
@@ -127,7 +129,6 @@ class Poirot(Bot):
         )
 
         self._discard(card_index)
-        self._delete_knowledge(card_index)
         return True
 
     def _next_discard_index(self, player_name: str) -> Optional[int]:
@@ -143,7 +144,7 @@ class Poirot(Bot):
                 unknown_discardable.append(knowledge)
         if len(unknown_discardable) == 0:
             return None
-        return self.players_knowledge[self.player_name].index(unknown_discardable[0])
+        return self.players_knowledge[player_name].index(unknown_discardable[0])
 
     def _best_hint_for(self, player_name: str) -> Hint:
         """Select most informative hint for player. Return (color, inted_color) or (value, inted_value)"""
@@ -312,6 +313,10 @@ class Poirot(Bot):
         self._discard(less_precious)
 
     def _make_action(self) -> None:
+        cards = {
+            k: [(c.color, c.value) for c in v] for k, v in self.player_cards.items()
+        }
+        self.logger.debug(repr(cards))
         if self._maybe_give_valuable_warning():
             return
         if self._maybe_play_lowest_value():

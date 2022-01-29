@@ -28,7 +28,7 @@ class Table:
     def next_playables_mask(self) -> np.ndarray:
         """Create an array with True if card is currently playable, otherwise False."""
         playables = np.zeros([5, 5], dtype=np.bool8)
-        playables[:, np.argmin(self.table_array, axis=1)] = True
+        playables[np.arange(5), np.argmin(self.table_array, axis=1)] = True
         return playables
 
     def playables_mask(self) -> np.ndarray:
