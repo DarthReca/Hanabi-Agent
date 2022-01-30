@@ -1,5 +1,5 @@
 $python = $env:CONDA_PYTHON_EXE
-$epochs = "100"
+$epochs = "10"
 
 Start-Process -FilePath $python -ArgumentList "server.py"
 

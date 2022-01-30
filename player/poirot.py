@@ -1,13 +1,14 @@
+from operator import ne
 from time import sleep
 from .bot import Bot
 from game_utils import Table, CardKnowledge
 import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
-from typing import Literal, Optional, Tuple, Dict, List, Set
+from typing import Literal, Optional, Tuple, Dict, List, Set, Union
 import GameData
 from collections import namedtuple
 
-Hint = namedtuple("Hint", ["type", "value", "informativity"])
+Hint = namedtuple("Hint", ["to", "type", "value", "informativity"])
 
 
 class Poirot(Bot):
@@ -16,7 +17,6 @@ class Poirot(Bot):
     ) -> None:
         super().__init__(host, port, player_name, games_to_play)
         self.players_knowledge = {self.player_name: [CardKnowledge() for _ in range(5)]}
-        # self.socket.settimeout(10)
 
     def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
         super()._process_game_start(action)
@@ -90,46 +90,9 @@ class Poirot(Bot):
                 ] -= 1
         return (valuables == 1) & self.table.playables_mask() & target_hand_mask
 
-    def _maybe_play_lowest_value(self) -> bool:
-        """Play a card we are sure can be played with the lowest value possible"""
-        playables = [
-            x
-            for x in self.players_knowledge[self.player_name]
-            if x.playability(self.table) == 1
-        ]
-        if len(playables) == 0:
-            return False
-        knowledge = min(
-            playables,
-            key=lambda x: np.min(x.possible_values()),
-        )
-        card_index = self.players_knowledge[self.player_name].index(knowledge)
-
-        self.logger.info(
-            f"Playing card n. {card_index}: {knowledge.possible_colors()} | {knowledge.possible_values()}"
-        )
-
-        self._play(card_index)
-        return True
-
-    def _maybe_discard_useless(self) -> bool:
-        """Discard the oldest card we are sure is not usable anymore"""
-        discardable = [
-            x
-            for x in self.players_knowledge[self.player_name]
-            if x.usability(self.table) == 0
-        ]
-        if len(discardable) == 0:
-            return False
-        # Discard oldest
-        card_index = self.players_knowledge[self.player_name].index(discardable[0])
-
-        self.logger.info(
-            f"Discarding card n. {card_index}: {discardable[0].possible_colors()} | {discardable[0].possible_values()}"
-        )
-
-        self._discard(card_index)
-        return True
+    def _next_player_action(self):
+        """Understand which action can do the next player."""
+        pass
 
     def _next_discard_index(self, player_name: str) -> Optional[int]:
         """Select the next card to discard if there is no sure card to play or discard"""
@@ -217,38 +180,44 @@ class Poirot(Bot):
             best_value_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
 
         if best_value_hint[1] > best_color_hint[1]:
-            return Hint("value", best_value_hint.item(0), best_value_hint.item(1))
-        return Hint("color", COLORS[best_color_hint.item(0)], best_color_hint.item(1))
+            return Hint(
+                player_name, "value", best_value_hint.item(0), best_value_hint.item(1)
+            )
+        return Hint(
+            player_name,
+            "color",
+            COLORS[best_color_hint.item(0)],
+            best_color_hint.item(1),
+        )
 
-    def _maybe_give_valuable_warning(self) -> bool:
+    def _select_valuable_warning(self) -> Optional[Hint]:
+        # Cannot give any hint
+        if self.remaining_hints == 0:
+            return None
         next_player = self._next_player(self.player_name)
         discard_index = self._next_discard_index(next_player)
         # Player knows which card to play/discard
         if discard_index is None:
-            return False
+            return None
         discard_card = self.player_cards[next_player][discard_index]
         valuables = self._valuable_mask_of_player(next_player)
         # Player wants to discard a useless card
         if not valuables[COLORS.index(discard_card.color), discard_card.value - 1]:
-            return False
-        # Cannot give any hint
-        if self.remaining_hints == 0:
-            return False
-        hint = self._best_hint_for(next_player)
-        # Found an hint to suggest player another action
-        if hint.informativity > 0:
-            self._give_hint(next_player, hint.type, hint.value)
-            return True
+            return None
+        # Necessary to give a warning
+        cards_of_value = [
+            card
+            for card in self.player_cards[next_player]
+            if card.value == discard_card.value
+        ]
         self.logger.info(
             f"Warning to {next_player} for card {discard_card.color}:{discard_card.value}"
         )
-        # Necessary to give a warning
-        self._give_hint(next_player, "value", discard_card.value)
-        return True
+        return Hint(next_player, "value", discard_card.value, len(cards_of_value))
 
-    def _maybe_give_helpful_hint(self) -> bool:
+    def _select_helpful_hint(self) -> Optional[Hint]:
         if self.remaining_hints == 0:
-            return False
+            return None
         hints = [
             (player, self._best_hint_for(player))
             for player in self.players
@@ -256,67 +225,116 @@ class Poirot(Bot):
         ]
         best = max(hints, key=lambda x: x[1].informativity)
         if best[1].informativity == 0:
-            return False
+            return None
         self.logger.info(f"Giving hint to {best[0]}: {repr(best[1])}")
-        self._give_hint(best[0], best[1].type, best[1].value)
-        return True
+        return best[1]
 
-    def _maybe_play_unknown(self) -> bool:
-        remaining = np.sum(
-            INITIAL_DECK
-            - self.table.total_table_card()
-            - self._count_cards_in_hands()
-            - 5
-        )
-        if remaining > 3:
-            return False
-        player_knowledge = self.players_knowledge[self.player_name]
-        for i, knowledge in enumerate(reversed(player_knowledge)):
-            if knowledge.playability(self.table) != 0:
-                self.logger.info(
-                    f"Playing unknown {len(player_knowledge) - 1 - i}: {knowledge.possible_colors()} | {knowledge.possible_values()}"
-                )
-                self._play(len(player_knowledge) - 1 - i)
-                return True
-        return False
-
-    def _maybe_discard_old_card(self) -> bool:
-        remaining_cards = np.sum(
-            INITIAL_DECK - self._count_cards_in_hands() - self.table.total_table_card()
-        )
-        # Cards in hand
-        remaining_cards -= 5
-        if remaining_cards <= 1:
-            for i, knowledge in enumerate(self.players_knowledge[self.player_name]):
-                if (
-                    knowledge.preciousness(self.table, self._count_cards_in_hands())
-                    == 0
-                ):
-                    self.logger.info(
-                        f"Discarding old {i}: {knowledge.possible_colors()} | {knowledge.possible_values()} "
-                    )
-                    self._discard(i)
-                    return True
-        return False
-
-    def _discard_less_precious(self):
-        cards_in_hands = self._count_cards_in_hands()
-        preciousness = [
-            knowledge.preciousness(self.table, cards_in_hands)
-            for knowledge in self.players_knowledge[self.player_name]
+    def _hint_oldest_to_next_player(self) -> Hint:
+        """Make an hint to give value information about the oldest card of the next player."""
+        next_player = self._next_player(self.player_name)
+        oldest_card = self.player_cards[next_player][0]
+        cards_with_value = [
+            card
+            for card in self.player_cards[next_player]
+            if card.value == oldest_card.value
         ]
-        less_precious = preciousness.index(min(preciousness))
-        selected_card = self.players_knowledge[self.player_name][less_precious]
-        self.logger.info(
-            f"Discard less precious {less_precious}: {selected_card.possible_colors()} | {selected_card.possible_values()}"
+        return Hint(next_player, "value", oldest_card.value, len(cards_with_value))
+
+    def _select_probably_not_precious(self, max_preciousness: float) -> Optional[int]:
+        """Select card with preciousness <= `max_preciousness`"""
+        cards_in_hands = self._count_cards_in_hands()
+        preciousness = np.array(
+            [
+                knowledge.preciousness(self.table, cards_in_hands)
+                for knowledge in self.players_knowledge[self.player_name]
+            ]
         )
-        self._discard(less_precious)
+        less_precious = np.argmin(preciousness)
+        if less_precious <= max_preciousness:
+            self.logger.info(
+                f"Not precious with at most {max_preciousness}: {self.players_knowledge[self.player_name][less_precious]}"
+            )
+            return less_precious
+        return None
+
+    def _select_probably_safe(self, min_safeness: float) -> Optional[int]:
+        """Select card with playability >= `min_safeness`"""
+        playabilities = np.array(
+            [
+                k.playability(self.table)
+                for k in self.players_knowledge[self.player_name]
+            ]
+        )
+        safest = np.argmax(playabilities)
+        if playabilities[safest] >= min_safeness:
+            self.logger.info(
+                f"Safest card with at least {min_safeness}: {self.players_knowledge[self.player_name][safest]}"
+            )
+            return safest
+        return None
+
+    def _select_probably_useless(self, max_usability: float) -> Optional[int]:
+        """Select the card with usability <= `max_usability`"""
+        usabilities = np.array(
+            [k.usability(self.table) for k in self.players_knowledge[self.player_name]]
+        )
+        most_useless = np.argmin(usabilities)
+        if usabilities[most_useless] <= max_usability:
+            self.logger.info(
+                f"Useless card with at most {max_usability}: {self.players_knowledge[self.player_name][most_useless]}"
+            )
+            return most_useless
+        return None
 
     def _make_action(self) -> None:
         cards = {
             k: [(c.color, c.value) for c in v] for k, v in self.player_cards.items()
         }
         self.logger.debug(repr(cards))
+        current_knol = self.players_knowledge[self.player_name]
+        # Play if possible
+        card_to_play = self._select_probably_safe(1.0)
+        if card_to_play is not None:
+            self.logger.info(f"Playing {current_knol[card_to_play]}")
+            self._play(card_to_play)
+            return
+        # Hint for warning
+        hint = self._select_valuable_warning()
+        if hint is not None:
+            self.logger.info(f"Hinting {hint}")
+            self._give_hint(hint.to, hint.type, hint.value)
+            return
+        # Useful hint
+        hint = self._select_helpful_hint()
+        if hint is not None:
+            self.logger.info(f"Hinting {hint}")
+            self._give_hint(hint.to, hint.type, hint.value)
+            return
+        # Discard if possible
+        card_to_discard = self._select_probably_useless(1.0)
+        if card_to_discard is not None and self.remaining_hints < 8:
+            self.logger.info(f"Discarding {current_knol[card_to_discard]}")
+            self._discard(card_to_discard)
+            return
+
+        for p in np.flip(np.linspace(0.0, 0.9, 10)):
+            if self.remaining_hints < 8:
+                card_to_discard = self._select_probably_useless(p)
+                if card_to_discard is not None:
+                    self.logger.info(f"Playing {current_knol[card_to_discard]}")
+                    self._discard(card_to_discard)
+                    return
+            elif self.lives > 1 and len(self.players_knowledge[self.player_name]) < 4:
+                card_to_play = self._select_probably_safe(p)
+                if card_to_play is not None:
+                    self.logger.info(f"Playing {current_knol[card_to_play]}")
+                    self._play(card_to_play)
+                    return
+            else:
+                hint = self._hint_oldest_to_next_player()
+                self._give_hint(hint.to, hint.type, hint.value)
+
+        """ Original Holmes
         if self._maybe_give_valuable_warning():
             return
         if self._maybe_play_lowest_value():
@@ -327,15 +345,14 @@ class Poirot(Bot):
             return
         # Try discard if possible, otherwise give value hint on oldest card
         if self.remaining_hints == 8:
-            next_player = self._next_player(self.player_name)
-            oldest_card = self.player_cards[next_player][0]
-            self._give_hint(next_player, "value", oldest_card.value)
+            self._tell_about_oldest_to_next()
         else:
             if self._maybe_discard_useless():
                 return
             if self._maybe_discard_old_card():
                 return
             self._discard_less_precious()
+        """
 
     def run(self) -> None:
         super().run()
@@ -348,6 +365,10 @@ class Poirot(Bot):
                 self._disconnect()
                 break
             # Process infos
+            if type(data) is GameData.ServerActionInvalid:
+                self._process_invalid(data)
+                self.turn_of = ""
+                continue
             if type(data) is GameData.ServerPlayerThunderStrike:
                 self._process_error(data)
             if type(data) is GameData.ServerStartGameData:
@@ -360,17 +381,15 @@ class Poirot(Bot):
                 self._update_infos(data)
             if type(data) is GameData.ServerPlayerMoveOk:
                 self._process_played_card(data)
-            if type(data) is GameData.ServerActionInvalid:
-                self._process_invalid(data)
-                self.need_info = True
             if type(data) is GameData.ServerGameOver:
                 self._process_game_over(data)
-                # break
+
+            # break
             # Exec bot turn
             if self.turn_of == self.player_name:
                 if self.need_info:
-                    self.logger.info(f"Making turn of {self.turn_of}")
+                    self.logger.debug("Requesting infos...")
                     self._get_infos()
-                    self.need_info = False
                 else:
+                    self.logger.info(f"Making turn of {self.turn_of}")
                     self._make_action()

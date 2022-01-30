@@ -59,3 +59,9 @@ class CardKnowledge:
 
     def is_known(self) -> bool:
         return len(self.possible_colors()) == 1 and len(self.possible_values()) == 1
+
+    def __repr__(self) -> str:
+        return f"Colors: {self.possible_colors()} | Values: {self.possible_values()}"
+
+    def __str__(self) -> str:
+        return f"Colors: {self.possible_colors()} | Values: {self.possible_values()}"
