@@ -6,7 +6,7 @@ import numpy as np
 from constants import COLORS, INITIAL_DECK, DATASIZE
 from typing import Literal, Optional, Tuple, Dict, List, Set, Union
 import GameData
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 Hint = namedtuple("Hint", ["to", "type", "value", "informativity"])
 
@@ -90,9 +90,18 @@ class Poirot(Bot):
                 ] -= 1
         return (valuables == 1) & self.table.playables_mask() & target_hand_mask
 
-    def _next_player_action(self):
-        """Understand which action can do the next player."""
-        pass
+    def _find_duplicates(self) -> int:
+        knowns = defaultdict(lambda _: [])
+
+        for i, knowl in enumerate(self.players_knowledge[self.player_name]):
+            if knowl.is_known():
+                knowns[
+                    (knowl.possible_colors().pop(), knowl.possible_values().pop())
+                ].append(i)
+
+        for v in knowns.values():
+            if len(v) > 1:
+                return v[0]
 
     def _next_discard_index(self, player_name: str) -> Optional[int]:
         """Select the next card to discard if there is no sure card to play or discard"""
@@ -153,9 +162,10 @@ class Poirot(Bot):
         if next_discard is not None:
             value_to_avoid = self.player_cards[player_name][next_discard].value
             knowledge = self.players_knowledge[player_name][next_discard]
-            if knowledge.preciousness(
-                self.table, self._count_cards_in_hands()
-            ) == 0 and knowledge.can_be(None, value_to_avoid):
+            if (
+                knowledge.preciousness(self.table, self._count_cards_in_hands()) == 0
+                and value_to_avoid in knowledge.possible_values()
+            ):
                 value_to_avoid = -1
 
         # Try give a value hint
@@ -265,7 +275,7 @@ class Poirot(Bot):
                 for k in self.players_knowledge[self.player_name]
             ]
         )
-        safest = np.argmax(playabilities)
+        safest = np.argmax(np.flip(playabilities))
         if playabilities[safest] >= min_safeness:
             self.logger.info(
                 f"Safest card with at least {min_safeness}: {self.players_knowledge[self.player_name][safest]}"
@@ -321,13 +331,15 @@ class Poirot(Bot):
             if self.remaining_hints < 8:
                 card_to_discard = self._select_probably_useless(p)
                 if card_to_discard is not None:
-                    self.logger.info(f"Playing {current_knol[card_to_discard]}")
+                    self.logger.info(
+                        f"Discarding {current_knol[card_to_discard]} with p={p}"
+                    )
                     self._discard(card_to_discard)
                     return
             elif self.lives > 1 and len(self.players_knowledge[self.player_name]) < 4:
                 card_to_play = self._select_probably_safe(p)
                 if card_to_play is not None:
-                    self.logger.info(f"Playing {current_knol[card_to_play]}")
+                    self.logger.info(f"Playing {current_knol[card_to_play]} with p={p}")
                     self._play(card_to_play)
                     return
             else:
