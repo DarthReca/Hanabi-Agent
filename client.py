@@ -17,6 +17,7 @@ if __name__ == "__main__":
         help="Player's name",
         type=str,
     )
+    parser.add_argument("--evolve", default=False, action="store_const", const=True)
     parser.add_argument(
         "--bot",
         help="Type of bot if this is not a player",
@@ -34,7 +35,9 @@ if __name__ == "__main__":
     elif args.bot == "MrSimple":
         player = player.MrSimple(args.host, args.port, args.player_name)
     elif args.bot == "Canaan":
-        player = player.CanaanBot(args.host, args.port, args.player_name, args.epochs)
+        player = player.CanaanBot(
+            args.host, args.port, args.player_name, args.epochs, args.evolve
+        )
 
     player.run()
     player.end()

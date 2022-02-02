@@ -1,3 +1,4 @@
+from game_utils.mutator import Mutator
 from .poirot import Poirot, Hint
 import numpy as np
 from typing import Optional
@@ -7,6 +8,21 @@ class CanaanBot(Poirot):
     """
     Reference: https://arxiv.org/pdf/1809.09764.pdf
     """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        player_name: str,
+        games_to_play: int = 1,
+        evolve: bool = False,
+    ) -> None:
+        super().__init__(host, port, player_name, games_to_play)
+        # These are defaults
+        self.parameters = {"safeness": 0.6, "usability": 0.4, "knowledge": 0.0}
+        self.load_parameters("params/canaan_params.json")
+        self.mutator = Mutator(0.2, len(self.parameters))
+        self.mutator.activate(evolve)
 
     def _select_oldest_unidentified(
         self, max_knowledge: int, target_player: Optional[str] = None
@@ -29,7 +45,7 @@ class CanaanBot(Poirot):
         self.logger.debug(repr(cards))
         current_knol = self.players_knowledge[self.player_name]
         if self.lives > 1:
-            card_index = self._select_probably_safe(0.6)
+            card_index = self._select_probably_safe(self.parameters["safeness"])
             if card_index is not None:
                 self.logger.info(f"Playing {current_knol[card_index]}")
                 self._play(card_index)
@@ -45,12 +61,12 @@ class CanaanBot(Poirot):
             self._play(card_index)
             return
         if self.remaining_hints < 8:
-            card_index = self._select_probably_useless(0.4)
+            card_index = self._select_probably_useless(self.parameters["usability"])
             if card_index is not None:
                 self.logger.info(f"Discarding {current_knol[card_index]}")
                 self._discard(card_index)
                 return
-            card_index = self._select_oldest_unidentified(0.0)
+            card_index = self._select_oldest_unidentified(self.parameters["knowledge"])
             if card_index is not None:
                 self.logger.info(f"Discarding {current_knol[card_index]}")
                 self._discard(card_index)

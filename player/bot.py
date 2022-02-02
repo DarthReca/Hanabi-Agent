@@ -1,6 +1,7 @@
 from asyncio.log import logger
 from logging import handlers
 import game
+from game_utils.mutator import Mutator
 from .player import Player
 from constants import COLORS
 import GameData
@@ -10,6 +11,7 @@ import numpy as np
 import logging
 from game_utils import Table
 import os
+import json
 
 
 class Bot(Player):
@@ -26,6 +28,10 @@ class Bot(Player):
         self.player_cards = {}  # type: Dict[str, List[game.Card]]
         self.need_info = False
         self.games_to_play = games_to_play
+        self.games_played = 0
+        self.parameters = {}  # type: Dict[str, float]
+        self.mutator = Mutator(0.5, 2)
+        self.scores = np.zeros(self.games_to_play)
         # Logger
         formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
         handler = logging.FileHandler(f"{self.player_name}.log", "w+")
@@ -93,9 +99,26 @@ class Bot(Player):
 
     def _process_game_over(self, data: GameData.ServerGameOver):
         self.logger.info(f"Score: {data.score}")
-        self.games_to_play -= 1
+        self.scores[self.games_played] = data.score
+        if (
+            self.games_played != 0
+            and self.games_played % 10 == 0
+            and self.mutator.active
+        ):
+            self.save_parameters(f"params/params_{self.games_played}.json")
+            current_mean = np.mean(
+                self.scores[self.games_played - 10 : self.games_played]
+            )
+            self.logger.info(
+                f"Mean score of the period with {repr(self.parameters)}: {current_mean}"
+            )
+            self.parameters = self.mutator.mutate(self.parameters, current_mean)
+
+        self.games_played += 1
         self.logger.info(f"Remaining games to play: {self.games_to_play}")
-        if self.games_to_play == 0:
+        if self.games_played == self.games_to_play:
+            if self.mutator.active:
+                self.logger.info(f"Best params: {repr(self.mutator.best_one())}")
             self._disconnect()
             os._exit(0)
         self.turn_of = self.players[0]
@@ -115,3 +138,12 @@ class Bot(Player):
 
     def end(self) -> None:
         super().end()
+
+    def save_parameters(self, filename: str) -> None:
+        with open(filename, "w+") as f:
+            f.write(json.dumps(self.parameters))
+
+    def load_parameters(self, filename: str) -> None:
+        if os.path.exists(filename):
+            with open(filename, "r") as f:
+                self.parameters = json.loads(f.read())
