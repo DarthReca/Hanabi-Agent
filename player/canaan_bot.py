@@ -19,8 +19,7 @@ class CanaanBot(Poirot):
     ) -> None:
         super().__init__(host, port, player_name, games_to_play)
         # These are defaults
-        self.parameters = {"safeness": 0.6, "usability": 0.4, "knowledge": 0.0}
-        self.load_parameters("params/canaan_params.json")
+        self.load_parameters("params/canaan2_params.json")
         self.mutator = Mutator(0.2, len(self.parameters))
         self.mutator.activate(evolve)
 

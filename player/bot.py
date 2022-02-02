@@ -147,3 +147,6 @@ class Bot(Player):
         if os.path.exists(filename):
             with open(filename, "r") as f:
                 self.parameters = json.loads(f.read())
+        else:
+            self.logger.warning("Parameters file does not exist")
+        self.logger.debug(f"Loaded parameters {self.parameters}")

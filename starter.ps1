@@ -9,7 +9,8 @@ if (Test-Path -Path "game.log" -PathType Leaf) {
 Start-Process -FilePath $python -ArgumentList "server.py", $numberOfPlayers
 for ($i = 0; $i -lt $numberOfPlayers; $i++) {
     $evolve = ($i%2 -eq 0 ? "--evolve" : "")
-    Start-Process -FilePath $python -ArgumentList "client.py", "--bot", "Canaan", "--player_name", "Bot$i", "--epochs", $epochs
+    $type = "Canaan"
+    Start-Process -FilePath $python -ArgumentList "client.py", "--bot", $type, "--player_name", "Bot$i", "--epochs", $epochs
     Start-Sleep -Seconds 0.5
 }
 
