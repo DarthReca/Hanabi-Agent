@@ -52,6 +52,7 @@ class Bot(Player):
         return total
 
     def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
+        self.turn_of = infos.currentPlayer
         self.remaining_hints = 8 - infos.usedNoteTokens
         self.lives = 3 - infos.usedStormTokens
         # Update possible cards
@@ -60,26 +61,31 @@ class Bot(Player):
 
         self.table.set_table(infos.tableCards)
         self.table.set_discard_pile(infos.discardPile)
+        self.need_info = False
 
     def _process_discard(self, action: GameData.ServerActionValid) -> None:
         self.turn_of = action.player
-        self.need_info = True
+        if self.turn_of == self.player_name:
+            self.need_info = True
 
     def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
         self.turn_of = action.player
-        self.need_info = True
+        if self.turn_of == self.player_name:
+            self.need_info = True
 
     def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
         self.logger.warning("Mistake")
         self.turn_of = action.player
-        self.need_info = True
+        if self.turn_of == self.player_name:
+            self.need_info = True
 
     def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
         self._player_ready()
         self.status = "Game"
         self.players = action.players
         self.turn_of = self.players[0]
-        self.need_info = True
+        if self.turn_of == self.player_name:
+            self.need_info = True
 
         self.logger.info(
             f"Starting game with {len(action.players)}. Turn of {self.turn_of}"
