@@ -1,10 +1,14 @@
 $python = $env:CONDA_PYTHON_EXE
 $epochs = 100
-$numeberOfPlayers = 2
+$numberOfPlayers = 2
 
-Start-Process -FilePath $python -ArgumentList "server.py", $numeberOfPlayers
-for ($i = 0; $i -lt $numeberOfPlayers; $i++) {
-    Start-Process -FilePath $python -ArgumentList "client.py", "--bot", "Poirot", "--player_name", "Bot$i", "--epochs", $epochs
+if (Test-Path -Path "game.log" -PathType Leaf) {
+    Remove-Item -Path "game.log"
+}
+
+Start-Process -FilePath $python -ArgumentList "server.py", $numberOfPlayers
+for ($i = 0; $i -lt $numberOfPlayers; $i++) {
+    Start-Process -FilePath $python -ArgumentList "client.py", "--bot", "Canaan", "--player_name", "Bot$i", "--epochs", $epochs
     Start-Sleep -Seconds 0.5
 }
 

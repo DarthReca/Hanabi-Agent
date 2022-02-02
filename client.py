@@ -22,7 +22,7 @@ if __name__ == "__main__":
         help="Type of bot if this is not a player",
         default="",
         type=str,
-        choices=["Poirot", "MrSimple"],
+        choices=["Poirot", "MrSimple", "Canaan"],
     )
     parser.add_argument("--epochs", type=int, default=1)
     args = parser.parse_args()
@@ -33,6 +33,8 @@ if __name__ == "__main__":
         player = player.Poirot(args.host, args.port, args.player_name, args.epochs)
     elif args.bot == "MrSimple":
         player = player.MrSimple(args.host, args.port, args.player_name)
+    elif args.bot == "Canaan":
+        player = player.CanaanBot(args.host, args.port, args.player_name, args.epochs)
 
     player.run()
     player.end()

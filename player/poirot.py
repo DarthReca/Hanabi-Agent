@@ -136,7 +136,7 @@ class Poirot(Bot):
             ],
             dtype=np.bool8,
         )
-        # Cards `player_name` knows are curretly playable
+        # Cards `player_name` knows are currently playable
         known_is_playable = np.array(
             [
                 knowledge.playability(self.table) == 1
@@ -145,8 +145,8 @@ class Poirot(Bot):
             dtype=np.bool8,
         )
         # Try give color hint with unknown-playable cards, without including unplayable
-        # Column 0: Color, Column 1: Informativity. Column 2: Misinformativity
-        informativity = np.empty([5, 3], dtype=np.uint8)
+        # Column 0: Color, Column 1: Informativity - Misinformativity
+        informativity = np.empty([5, 2], dtype=np.int32)
         for i, color in enumerate(COLORS):
             # Card of given color
             cards_of_color = np.array(
@@ -155,15 +155,9 @@ class Poirot(Bot):
             informativity[i, 0] = i
             informativity[i, 1] = np.sum(
                 np.logical_not(known_is_playable) & really_playables & cards_of_color
-            )
-            informativity[i, 2] = np.sum(
-                np.logical_not(really_playables) & cards_of_color
-            )
+            ) - np.sum(np.logical_not(really_playables) & cards_of_color)
         # Most informative without misinformations
-        non_mis = informativity[informativity[:, 2] == 0]
-        best_color_hint = np.zeros([3], dtype=np.uint8)
-        if non_mis.shape[0] != 0:
-            best_color_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
+        best_color_hint = np.copy(informativity[np.argmax(informativity[:, 1])])
         # Avoid giving hint that could be interpreted as warnings (avoid precious cards)
         next_discard = self._next_discard_index(player_name)
         value_to_avoid = -1
@@ -179,7 +173,7 @@ class Poirot(Bot):
         # Try give a value hint
         for i, value in enumerate(range(1, 6)):
             if value_to_avoid == value:
-                informativity[i] = np.array([i, 0, 100])
+                informativity[i] = np.array([i, -100])
                 continue
             cards_of_value = np.array(
                 [card.value == value for card in self.player_cards[player_name]]
@@ -187,15 +181,9 @@ class Poirot(Bot):
             informativity[i, 0] = value
             informativity[i, 1] = np.sum(
                 np.logical_not(known_is_playable) & really_playables & cards_of_value
-            )
-            informativity[i, 2] = np.sum(
-                np.logical_not(really_playables) & cards_of_value
-            )
+            ) - np.sum(np.logical_not(really_playables) & cards_of_value)
         # Most informative without misinformations
-        non_mis = informativity[informativity[:, 2] == 0]
-        best_value_hint = np.zeros([3], dtype=np.uint8)
-        if non_mis.shape[0] != 0:
-            best_value_hint = np.copy(informativity[np.argmax(non_mis[:, 1])])
+        best_value_hint = np.copy(informativity[np.argmax(informativity[:, 1])])
 
         if best_value_hint[1] > best_color_hint[1]:
             return Hint(
@@ -242,7 +230,7 @@ class Poirot(Bot):
             if player != self.player_name
         ]
         best = max(hints, key=lambda x: x[1].informativity)
-        if best[1].informativity == 0:
+        if best[1].informativity <= 0:
             return None
         self.logger.info(f"Giving hint to {best[0]}: {repr(best[1])}")
         return best[1]
@@ -250,11 +238,15 @@ class Poirot(Bot):
     def _hint_oldest_to_next_player(self) -> Hint:
         """Make an hint to give value information about the oldest card of the next player."""
         next_player = self._next_player(self.player_name)
-        oldest_card = self.player_cards[next_player][0]
+        player_hand = self.player_cards[next_player]
+        player_knol = self.players_knowledge[next_player]
+        oldest_card = player_hand[0]
+        for i, card in enumerate(player_hand):
+            if len(player_knol[i].possible_values()) != 1:
+                oldest_card = card
+                break
         cards_with_value = [
-            card
-            for card in self.player_cards[next_player]
-            if card.value == oldest_card.value
+            card for card in player_hand if card.value == oldest_card.value
         ]
         return Hint(next_player, "value", oldest_card.value, len(cards_with_value))
 
@@ -300,10 +292,6 @@ class Poirot(Bot):
         return None
 
     def _make_action(self) -> None:
-        cards = {
-            k: [(c.color, c.value) for c in v] for k, v in self.player_cards.items()
-        }
-        self.logger.debug(repr(cards))
         current_knol = self.players_knowledge[self.player_name]
         # Play if possible
         hint = self._select_valuable_warning()
@@ -358,7 +346,6 @@ class Poirot(Bot):
                     self.logger.info(f"Discarding {current_knol[card_index]}")
                     self._discard(card_index)
                     return
-
         """ Original Holmes
         if self._maybe_give_valuable_warning():
             return
