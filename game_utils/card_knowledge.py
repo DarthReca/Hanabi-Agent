@@ -31,9 +31,9 @@ class CardKnowledge:
     def remove_cards(self, cards: np.ndarray):
         self.can_be &= INITIAL_DECK - cards != 0
 
-    def preciousness(self, table: Table, players_cards: np.ndarray) -> float:
+    def preciousness(self, table: Table) -> float:
         """Probability the card could be a valuable one (it could be the only card of this type)"""
-        valuables = INITIAL_DECK - players_cards - table.total_table_card() == 1
+        valuables = INITIAL_DECK - table.total_table_card() == 1  # - players_cards
         return np.sum(self.can_be & valuables & table.playables_mask()) / np.sum(
             self.can_be
         )
