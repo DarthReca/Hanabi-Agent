@@ -133,7 +133,7 @@ class Poirot(Bot):
         return self.players_knowledge[player_name].index(unknown_discardable[0])
 
     def _best_hint_for(self, player_name: str) -> Hint:
-        """Select most informative hint for player. Return (color, inted_color) or (value, inted_value)"""
+        """Select most informative hint for player."""
         # Cards in hand that can be played now
         really_playables = np.array(
             [
@@ -164,23 +164,8 @@ class Poirot(Bot):
             ) - np.sum(np.logical_not(really_playables) & cards_of_color)
         # Most informative without misinformations
         best_color_hint = np.copy(informativity[np.argmax(informativity[:, 1])])
-        # Avoid giving hint that could be interpreted as warnings (avoid precious cards)
-        next_discard = self._next_discard_index(player_name)
-        value_to_avoid = -1
-        if next_discard is not None:
-            value_to_avoid = self.player_cards[player_name][next_discard].value
-            knowledge = self.players_knowledge[player_name][next_discard]
-            if (
-                knowledge.preciousness(self.table) == 0
-                and value_to_avoid in knowledge.possible_values()
-            ):
-                value_to_avoid = -1
-
         # Try give a value hint
         for i, value in enumerate(range(1, 6)):
-            if value_to_avoid == value:
-                informativity[i] = np.array([i, -100])
-                continue
             cards_of_value = np.array(
                 [card.value == value for card in self.player_cards[player_name]]
             )
@@ -307,7 +292,7 @@ class Poirot(Bot):
             return
         card_index = self._select_probably_safe(1.0)
         if card_index is not None:
-            self.logger.info(f"Playing {current_knol[card_index]}")
+            self.logger.info(f"Playing {card_index}: {current_knol[card_index]}")
             self._play(card_index)
             return
         hint = self._select_helpful_hint()
@@ -326,18 +311,20 @@ class Poirot(Bot):
         if self.remaining_hints < 8:
             card_index = self._select_probably_useless(0.0)
             if card_index is not None:
-                self.logger.info(f"Discarding {current_knol[card_index]}")
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
                 self._discard(card_index)
                 return
             card_index = self._next_discard_index(self.player_name)
             if card_index is not None:
-                self.logger.info(f"Discarding {current_knol[card_index]}")
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
                 self._discard(card_index)
                 return
             for p in np.linspace(0.1, 0.5, 5):
                 card_index = self._select_probably_not_precious(p)
                 if card_index is not None:
-                    self.logger.info(f"Discarding {current_knol[card_index]}")
+                    self.logger.info(
+                        f"Discarding {card_index}: {current_knol[card_index]}"
+                    )
                     self._discard(card_index)
                     return
 
@@ -349,7 +336,9 @@ class Poirot(Bot):
             for p in np.linspace(0.6, 1.0, 5):
                 card_index = self._select_probably_not_precious(p)
                 if card_index is not None:
-                    self.logger.info(f"Discarding {current_knol[card_index]}")
+                    self.logger.info(
+                        f"Discarding {card_index}: {current_knol[card_index]}"
+                    )
                     self._discard(card_index)
                     return
         """ Original Holmes

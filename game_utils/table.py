@@ -1,5 +1,5 @@
 import game
-from constants import COLORS
+from constants import COLORS, INITIAL_DECK
 from typing import List, Dict, Set, Tuple
 from itertools import chain
 import numpy as np
@@ -30,6 +30,10 @@ class Table:
         playables = np.zeros([5, 5], dtype=np.bool8)
         playables[np.arange(5), np.argmin(self.table_array, axis=1)] = True
         return playables
+
+    def precious_cards(self) -> Set[Tuple[str, int]]:
+        colors, values = np.nonzero(INITIAL_DECK - self.total_table_card() == 1)
+        return {(COLORS[colors[i]], values[i] + 1) for i in range(colors.shape[0])}
 
     def playables_mask(self) -> np.ndarray:
         """Create an array with True if the card was not already played, otherwise False."""

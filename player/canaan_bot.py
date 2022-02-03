@@ -1,7 +1,8 @@
-from game_utils.mutator import Mutator
+from game_utils import Mutator, Table
 from .poirot import Poirot, Hint
 import numpy as np
 from typing import Optional
+from constants import COLORS
 
 
 class CanaanBot(Poirot):
@@ -15,13 +16,56 @@ class CanaanBot(Poirot):
         port: int,
         player_name: str,
         games_to_play: int = 1,
+        parameters_file: Optional[str] = None,
         evolve: bool = False,
     ) -> None:
         super().__init__(host, port, player_name, games_to_play)
-        # These are defaults
-        self.load_parameters("params/canaan2_params.json")
+        self.load_parameters(parameters_file)
         self.mutator = Mutator(0.2, len(self.parameters))
         self.mutator.activate(evolve)
+
+    def _select_disposable_hint(self, target_player: str) -> Optional[Hint]:
+        hand = self.player_cards[target_player]
+        disposable = np.array(
+            [
+                self.table.table_array[COLORS.index(card.color), card.value - 1] == 1
+                for card in hand
+            ]
+        )
+        knowledge = self.players_knowledge[target_player]
+        known_disposable = np.array(
+            [
+                np.sum(self.table.table_array | knowl.can_be)
+                <= np.sum(self.table.table_array)
+                for knowl in knowledge
+            ]
+        )
+        # Select only unknown
+        values = np.array([card.value for card in hand])
+        hints = values[disposable & np.logical_not(known_disposable)]
+        if hints.shape[0] == 0:
+            return None
+        # Select only non-misinformative hint
+        stats = []
+        for h in hints:
+            cards_with_value = values == h
+            colors_to_exclude = np.flatnonzero(self.table.table_array[:, h - 1] == 0)
+            informativity = np.sum(cards_with_value)
+            disinformativity = np.sum(cards_with_value & np.logical_not(disposable))
+            if colors_to_exclude.shape[0] != 0:
+                disinformativity += sum(
+                    [
+                        np.sum(knowledge[i].can_be[colors_to_exclude])
+                        for i in np.flatnonzero(cards_with_value)
+                    ]
+                )
+            if disinformativity == 0:
+                stats.append((h, informativity))
+        if len(stats) == 0:
+            return None
+        most_informative = max(stats, key=lambda x: x[1])
+        self.logger.debug(f"Giving disposable hint")
+        return Hint(target_player, "value", most_informative[0], most_informative[1])
 
     def _select_oldest_unidentified(
         self, max_knowledge: int, target_player: Optional[str] = None
@@ -46,7 +90,7 @@ class CanaanBot(Poirot):
         if self.lives > 1:
             card_index = self._select_probably_safe(self.parameters["safeness"])
             if card_index is not None:
-                self.logger.info(f"Playing {current_knol[card_index]}")
+                self.logger.info(f"Playing {card_index}: {current_knol[card_index]}")
                 self._play(card_index)
                 return
         hint = self._select_helpful_hint()
@@ -56,31 +100,36 @@ class CanaanBot(Poirot):
             return
         card_index = self._select_probably_safe(1.0)
         if card_index is not None:
-            self.logger.info(f"Playing {current_knol[card_index]}")
+            self.logger.info(f"Playing {card_index}: {current_knol[card_index]}")
             self._play(card_index)
             return
+
         if self.remaining_hints < 8:
             card_index = self._select_probably_useless(self.parameters["usability"])
             if card_index is not None:
-                self.logger.info(f"Discarding {current_knol[card_index]}")
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
                 self._discard(card_index)
                 return
             card_index = self._select_oldest_unidentified(self.parameters["knowledge"])
             if card_index is not None:
-                self.logger.info(f"Discarding {current_knol[card_index]}")
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
                 self._discard(card_index)
                 return
             card_index = self._select_oldest_unidentified(1.0)
-            self.logger.info(f"Discarding {current_knol[card_index]}")
+            self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
             self._discard(card_index)
         else:
             next_player = self._next_player(self.player_name)
+            hint = self._select_disposable_hint(next_player)
+            if hint is not None:
+                self.logger.info(f"Giving hint {repr(hint)}")
+                self._give_hint(hint.to, hint.type, hint.value)
+                return
             card_index = self._select_oldest_unidentified(1.0, next_player)
             card_knol = self.players_knowledge[next_player][card_index]
             card = self.player_cards[next_player][card_index]
             hint = Hint(next_player, "color", card.color, 1)
             if len(card_knol.possible_colors()) < len(card_knol.possible_values()):
-                hint.type = "value"
-                hint.value = card.value
+                hint = Hint(next_player, "value", card.value, 1)
             self.logger.info(f"Giving hint {repr(hint)}")
             self._give_hint(hint.to, hint.type, hint.value)
