@@ -1,6 +1,5 @@
 import numpy as np
 from typing import Dict
-import matplotlib.pyplot as plt
 
 
 class Mutator:
@@ -8,7 +7,7 @@ class Mutator:
         self.params_count = params_count
         self.variance = starting_variance
         self.lr = 1 / np.sqrt(params_count)
-        self.last_params = ({}, -1)
+        self.last_params = ({}, -1.0)
         self.active = True
         self.rng = np.random.default_rng()
 
@@ -31,8 +30,3 @@ class Mutator:
 
     def best_one(self):
         return self.last_params[0]
-
-
-if __name__ == "__main__":
-    mut = Mutator(0.2, 2)
-    mut.mutate({"a": 0.1, "b": 0.5}, 0)
