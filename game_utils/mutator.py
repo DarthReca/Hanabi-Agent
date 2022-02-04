@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Dict
+import matplotlib.pyplot as plt
 
 
 class Mutator:
@@ -9,6 +10,7 @@ class Mutator:
         self.lr = 1 / np.sqrt(params_count)
         self.last_params = ({}, -1)
         self.active = True
+        self.rng = np.random.default_rng()
 
     def activate(self, active: bool):
         self.active = active
@@ -18,15 +20,19 @@ class Mutator:
             self.last_params = (params, result)
         if not self.active:
             return self.last_params[0]
-        self.variance = self.variance * np.exp(self.lr * np.random.standard_normal())
+        self.variance = self.variance * np.exp(self.lr * self.rng.standard_normal())
         mutated = {}
         for k, v in self.last_params[0].items():
-            mutated[k] = np.random.normal(loc=v, scale=self.variance)
-            if mutated[k] < 0:
-                mutated[k] = 0.0
-            if mutated[k] > 1:
-                mutated[k] = 1.0
+            # Sample from a normal, remove useless values and select one
+            samples = self.rng.normal(loc=v, scale=self.variance, size=100)
+            samples = samples[np.logical_and(samples >= 0, samples <= 1)]
+            mutated[k] = self.rng.choice(samples)
         return mutated
 
     def best_one(self):
         return self.last_params[0]
+
+
+if __name__ == "__main__":
+    mut = Mutator(0.2, 2)
+    mut.mutate({"a": 0.1, "b": 0.5}, 0)
