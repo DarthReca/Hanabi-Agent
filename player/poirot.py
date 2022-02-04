@@ -1,17 +1,26 @@
-from operator import ne
-from time import sleep
-from .bot import Bot
-from game_utils import Table, CardKnowledge
+from collections import defaultdict, namedtuple
+from typing import Dict, List, Optional
+
 import numpy as np
-from constants import COLORS, INITIAL_DECK, DATASIZE
-from typing import Literal, Optional, Tuple, Dict, List, Set, Union
+
 import GameData
-from collections import namedtuple, defaultdict
+from constants import COLORS, DATASIZE, INITIAL_DECK
+from game_utils import CardKnowledge, Table
+
+from .bot import Bot
 
 Hint = namedtuple("Hint", ["to", "type", "value", "informativity"])
 
 
 class Poirot(Bot):
+    """
+    Poirot is a base version for knowledge-based players. We are tracking each player knowledge of his hand.
+
+    References
+    ----------
+    [1] T. Kato, H. Osawa, "I Know You Better Than You Know Yourself: Estimation of Blind Self Improves Acceptance for an Agent"
+    """
+
     def __init__(
         self,
         host: str,
@@ -301,12 +310,11 @@ class Poirot(Bot):
             self._give_hint(hint.to, hint.type, hint.value)
             return
         if len(current_knol) < 5:
-            for p in np.flip(np.linspace(0.5, 0.9, 5)):
-                card_index = self._select_probably_safe(p)
-                if card_index is not None:
-                    self.logger.info(f"Playing {current_knol[card_index]}")
-                    self._play(card_index)
-                    return
+            card_index = self._select_probably_safe(0.5)
+            if card_index is not None:
+                self.logger.info(f"Playing {current_knol[card_index]}")
+                self._play(card_index)
+                return
 
         if self.remaining_hints < 8:
             card_index = self._select_probably_useless(0.0)
@@ -319,47 +327,22 @@ class Poirot(Bot):
                 self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
                 self._discard(card_index)
                 return
-            for p in np.linspace(0.1, 0.5, 5):
-                card_index = self._select_probably_not_precious(p)
-                if card_index is not None:
-                    self.logger.info(
-                        f"Discarding {card_index}: {current_knol[card_index]}"
-                    )
-                    self._discard(card_index)
-                    return
+            card_index = self._select_probably_not_precious(0.5)
+            if card_index is not None:
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
+                self._discard(card_index)
+                return
 
         if self.remaining_hints > 0:
             hint = self._hint_oldest_to_next_player()
             self.logger.info(f"Giving hint {repr(hint)}")
             self._give_hint(hint.to, hint.type, hint.value)
         else:
-            for p in np.linspace(0.6, 1.0, 5):
-                card_index = self._select_probably_not_precious(p)
-                if card_index is not None:
-                    self.logger.info(
-                        f"Discarding {card_index}: {current_knol[card_index]}"
-                    )
-                    self._discard(card_index)
-                    return
-        """ Original Holmes
-        if self._maybe_give_valuable_warning():
-            return
-        if self._maybe_play_lowest_value():
-            return
-        if self._maybe_give_helpful_hint():
-            return
-        if self._maybe_play_unknown():
-            return
-        # Try discard if possible, otherwise give value hint on oldest card
-        if self.remaining_hints == 8:
-            self._tell_about_oldest_to_next()
-        else:
-            if self._maybe_discard_useless():
+            card_index = self._select_probably_not_precious(1.0)
+            if card_index is not None:
+                self.logger.info(f"Discarding {card_index}: {current_knol[card_index]}")
+                self._discard(card_index)
                 return
-            if self._maybe_discard_old_card():
-                return
-            self._discard_less_precious()
-        """
 
     def run(self) -> None:
         super().run()

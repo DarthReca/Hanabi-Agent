@@ -7,7 +7,12 @@ from constants import COLORS
 
 class CanaanBot(Poirot):
     """
-    Reference: https://arxiv.org/pdf/1809.09764.pdf
+    CanaanBot is a rule-based bot using the "old" rules of Canaan paper[1].
+
+    References
+    ----------
+    [1] https://arxiv.org/pdf/1809.09764.pdf
+
     """
 
     def __init__(
@@ -25,6 +30,7 @@ class CanaanBot(Poirot):
         self.mutator.activate(evolve)
 
     def _select_disposable_hint(self, target_player: str) -> Optional[Hint]:
+        """Select an hint to advice about useless cards of `target_player`."""
         hand = self.player_cards[target_player]
         disposable = np.array(
             [
@@ -49,10 +55,12 @@ class CanaanBot(Poirot):
         stats = []
         for h in hints:
             cards_with_value = values == h
+            # Colors of cards of value h that were not played
             colors_to_exclude = np.flatnonzero(self.table.table_array[:, h - 1] == 0)
             informativity = np.sum(cards_with_value)
             disinformativity = np.sum(cards_with_value & np.logical_not(disposable))
             if colors_to_exclude.shape[0] != 0:
+                # It is disinformative selecting a card that can be still playable
                 disinformativity += sum(
                     [
                         np.sum(knowledge[i].can_be[colors_to_exclude])
@@ -70,11 +78,11 @@ class CanaanBot(Poirot):
     def _select_oldest_unidentified(
         self, max_knowledge: int, target_player: Optional[str] = None
     ) -> Optional[int]:
+        """Select the most unidentified card in hand of `target_player` with knowledge <= `max_knowledge`."""
         target_player = self.player_name if target_player is None else target_player
-        hand = self.players_knowledge[target_player]
-        possibilities = np.array(
-            [len(card.possible_colors()) * len(card.possible_values()) for card in hand]
-        )
+        player_knowledge = self.players_knowledge[target_player]
+        possibilities = np.array([np.sum(knol.can_be) for knol in player_knowledge])
+        # The knowledge (0..1) is higher if the possibilities are less
         knowledge = 1 - possibilities / 25
         less_known = np.argmin(knowledge)
         if knowledge[less_known] <= max_knowledge:
