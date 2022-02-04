@@ -2,9 +2,7 @@
 
 from constants import *
 import argparse
-import random
 import player
-import os
 
 
 if __name__ == "__main__":
