@@ -2,6 +2,8 @@
 
 This repo contains an agent to play Hanabi card game builded for the course Computational Intelligence at Politecnico di Torino.
 
+Project by Borzi Matteo, Cafaro Macchi Carlo and Rege Cambrin Daniele
+
 ## Client
 
 Arguments:

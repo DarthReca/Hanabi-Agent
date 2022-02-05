@@ -165,4 +165,5 @@ class Nexto(CanaanBot):
             )
             self._give_hint(hint.to, hint.type, hint.value)
             return
+        # Execute CanaanBot ruleset
         super()._make_action()

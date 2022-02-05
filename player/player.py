@@ -1,5 +1,4 @@
 import socket
-from time import sleep
 from typing import Literal
 import GameData, constants
 
@@ -75,7 +74,6 @@ class Player:
 
     def run(self) -> None:
         """Start the threads to manage the game"""
-        pass
 
     def end(self) -> None:
         """Terminate all threads and close socket to finish the game"""

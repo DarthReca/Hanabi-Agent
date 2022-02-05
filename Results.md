@@ -9,6 +9,13 @@ On 100 games
 | _Max_     | 17      | 16      | 17     | 15                | 17                | 21     | 18               |
 | _std_     | 2.41    | 2.18    | 3.04   | 2.12              | 2.67              | 2.45   | 2.95             |
 
+On 1000 games Mirror:
+
+- Average : 12,508
+- Maximum : 20
+- Minimum : 0
+- StandardDeviation : 2,58352677760665
+
 # 2 players
 
 |           | Poirot | Poirot, Canaan2 | Poirot, Canaan1 | Nexto1, Poirot |
@@ -24,6 +31,13 @@ On 100 games
 | _Min_     | 5       | 0       | 5       | 0      |
 | _Max_     | 17      | 18      | 20      | 22     |
 | _std_     | 2.28    | 3.16    | 2.90    | 3.00   |
+
+On 1000 games Mirror:
+
+- Average : 13,534
+- Maximum : 21
+- Minimum : 0
+- StandardDeviation : 3,43782818981151
 
 **Distribution of actions**
 

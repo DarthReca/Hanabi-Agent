@@ -1,6 +1,6 @@
 $python = $env:CONDA_PREFIX + "\python.exe"
-$epochs = 100
-$numberOfPlayers = 2
+$epochs = 1000
+$numberOfPlayers = 4
 
 if (Test-Path -Path "game.log" -PathType Leaf) {
     Remove-Item -Path "game.log"
@@ -13,6 +13,3 @@ for ($i = 0; $i -lt $numberOfPlayers; $i++) {
     Start-Process -FilePath $python -ArgumentList "client.py", "--bot", $type, "--player_name", "Bot$i", "--epochs", $epochs
     Start-Sleep -Seconds 0.5
 }
-
-
-# Get-Content "Bot0.log" -Tail 1 | Out-File -FilePath "Scores.txt" -Append

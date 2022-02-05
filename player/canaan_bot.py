@@ -76,7 +76,7 @@ class CanaanBot(Poirot):
         return Hint(target_player, "value", most_informative[0], most_informative[1])
 
     def _select_oldest_unidentified(
-        self, max_knowledge: int, target_player: Optional[str] = None
+        self, max_knowledge: float, target_player: Optional[str] = None
     ) -> Optional[int]:
         """Select the most unidentified card in hand of `target_player` with knowledge <= `max_knowledge`."""
         target_player = self.player_name if target_player is None else target_player

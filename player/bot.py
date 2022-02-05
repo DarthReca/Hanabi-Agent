@@ -1,11 +1,9 @@
-from asyncio.log import logger
-from logging import handlers
 import game
 from game_utils.mutator import Mutator
 from .player import Player
 from constants import COLORS
 import GameData
-from typing import List, Dict, Set, Tuple
+from typing import Dict, List
 from itertools import chain
 import numpy as np
 import logging
@@ -115,7 +113,7 @@ class Bot(Player):
             self.parameters = self.mutator.mutate(self.parameters, current_mean)
 
         self.games_played += 1
-        self.logger.info(f"Remaining games to play: {self.games_to_play}")
+        self.logger.info(f"Remaining games to play: {self.games_to_play - self.games_played}")
         if self.games_played == self.games_to_play:
             if self.mutator.active:
                 self.logger.info(f"Best params: {repr(self.mutator.best_one())}")
