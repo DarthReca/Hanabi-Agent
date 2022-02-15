@@ -3,7 +3,7 @@ from typing import Dict, List, Set, Tuple
 
 import numpy as np
 
-import game
+import game_data
 from constants import COLORS, INITIAL_DECK
 
 
@@ -14,12 +14,12 @@ class Table:
         self.table_array = np.zeros([5, 5], dtype=np.uint8)
         self.discard_array = np.zeros([5, 5], dtype=np.uint8)
 
-    def set_discard_pile(self, pile: List[game.Card]):
+    def set_discard_pile(self, pile: List[game_data.Card]):
         self.discard_array.fill(0)
         for card in pile:
             self.discard_array[COLORS.index(card.color), card.value - 1] += 1
 
-    def set_table(self, table: Dict[str, List[game.Card]]):
+    def set_table(self, table: Dict[str, List[game_data.Card]]):
         for card in chain(*table.values()):
             self.table_array[COLORS.index(card.color), card.value - 1] = 1
 

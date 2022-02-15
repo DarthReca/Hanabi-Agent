@@ -1,15 +1,15 @@
-import game
-from game_utils.mutator import Mutator
-from .player import Player
-from constants import COLORS
-import GameData
-from typing import Dict, List
-from itertools import chain
-import numpy as np
-import logging
-from game_utils import Table
-import os
 import json
+import logging
+import os
+from typing import Dict, List
+
+import numpy as np
+
+import game_data
+from constants import COLORS
+from game_utils import Table, Mutator
+
+from .player import Player
 
 
 class Bot(Player):
@@ -23,7 +23,7 @@ class Bot(Player):
         self.remaining_hints = 8
         self.lives = 3
         self.table = Table()
-        self.player_cards = {}  # type: Dict[str, List[game.Card]]
+        self.player_cards = {}  # type: Dict[str, List[game_data.Card]]
         self.need_info = False
         self.games_to_play = games_to_play
         self.games_played = 0
@@ -41,7 +41,7 @@ class Bot(Player):
         next_player_index = (self.players.index(player_name) + 1) % len(self.players)
         return self.players[next_player_index]
 
-    def _cards_to_ndarray(self, *cards: game.Card):
+    def _cards_to_ndarray(self, *cards: game_data.Card):
         """Create an array that count the occurences of each card type."""
         ndarray = np.zeros([5, 5], dtype=np.uint8)
         for card in cards:
@@ -55,7 +55,7 @@ class Bot(Player):
             total += self._cards_to_ndarray(*hand)
         return total
 
-    def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
+    def _update_infos(self, infos: game_data.ServerGameStateData) -> None:
         self.turn_of = infos.currentPlayer
         self.remaining_hints = 8 - infos.usedNoteTokens
         self.lives = 3 - infos.usedStormTokens
@@ -67,23 +67,23 @@ class Bot(Player):
         self.table.set_discard_pile(infos.discardPile)
         self.need_info = False
 
-    def _process_discard(self, action: GameData.ServerActionValid) -> None:
+    def _process_discard(self, action: game_data.ServerActionValid) -> None:
         self.turn_of = action.player
         if self.turn_of == self.player_name:
             self.need_info = True
 
-    def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
+    def _process_played_card(self, action: game_data.ServerPlayerMoveOk) -> None:
         self.turn_of = action.player
         if self.turn_of == self.player_name:
             self.need_info = True
 
-    def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
+    def _process_error(self, action: game_data.ServerPlayerThunderStrike) -> None:
         self.logger.warning("Mistake")
         self.turn_of = action.player
         if self.turn_of == self.player_name:
             self.need_info = True
 
-    def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
+    def _process_game_start(self, action: game_data.ServerStartGameData) -> None:
         self._player_ready()
         self.status = "Game"
         self.players = action.players
@@ -95,7 +95,7 @@ class Bot(Player):
             f"Starting game with {len(action.players)}. Turn of {self.turn_of}"
         )
 
-    def _process_game_over(self, data: GameData.ServerGameOver):
+    def _process_game_over(self, data: game_data.ServerGameOver):
         self.logger.info(f"Score: {data.score}")
         self.scores[self.games_played] = data.score
         if (
@@ -127,7 +127,7 @@ class Bot(Player):
             self.player_cards[k].clear()
         self.need_info = True
 
-    def _process_invalid(self, data: GameData.ServerActionInvalid):
+    def _process_invalid(self, data: game_data.ServerActionInvalid):
         self.logger.error(data.message)
 
     def run(self) -> None:

@@ -1,5 +1,5 @@
 $python = $env:CONDA_PREFIX + "\python.exe"
-$epochs = 1000
+$epochs = 10
 $numberOfPlayers = 4
 
 if (Test-Path -Path "game.log" -PathType Leaf) {

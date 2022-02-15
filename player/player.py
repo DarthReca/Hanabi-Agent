@@ -1,6 +1,8 @@
 import socket
 from typing import Literal
-import GameData, constants
+
+import constants
+import game_data
 
 
 class Player:
@@ -31,40 +33,40 @@ class Player:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         # Start connection
-        self.socket.send(GameData.ClientPlayerAddData(player_name).serialize())
+        self.socket.send(game_data.ClientPlayerAddData(player_name).serialize())
         data = self.socket.recv(constants.DATASIZE)
-        data = GameData.GameData.deserialize(data)
-        if type(data) is GameData.ServerPlayerConnectionOk:
+        data = game_data.GameData.deserialize(data)
+        if type(data) is game_data.ServerPlayerConnectionOk:
             print("Connection accepted by the server. Welcome " + player_name)
         print(f"[{player_name}-{self.status}]: ", end="")
 
     def _start_game(self):
         self.socket.send(
-            GameData.ClientPlayerStartRequest(self.player_name).serialize()
+            game_data.ClientPlayerStartRequest(self.player_name).serialize()
         )
 
     def _player_ready(self):
-        self.socket.send(GameData.ClientPlayerReadyData(self.player_name).serialize())
+        self.socket.send(game_data.ClientPlayerReadyData(self.player_name).serialize())
         self.status = "Game"
 
     def _get_infos(self):
         self.socket.send(
-            GameData.ClientGetGameStateRequest(self.player_name).serialize()
+            game_data.ClientGetGameStateRequest(self.player_name).serialize()
         )
 
     def _discard(self, card: int):
         self.socket.send(
-            GameData.ClientPlayerDiscardCardRequest(self.player_name, card).serialize()
+            game_data.ClientPlayerDiscardCardRequest(self.player_name, card).serialize()
         )
 
     def _play(self, card: int):
         self.socket.send(
-            GameData.ClientPlayerPlayCardRequest(self.player_name, card).serialize()
+            game_data.ClientPlayerPlayCardRequest(self.player_name, card).serialize()
         )
 
     def _give_hint(self, player: str, hint_type: Literal["color", "value"], hint):
         self.socket.send(
-            GameData.ClientHintData(
+            game_data.ClientHintData(
                 self.player_name, player, hint_type, hint
             ).serialize()
         )

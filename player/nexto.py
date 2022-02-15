@@ -1,12 +1,13 @@
 from copy import deepcopy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
+
+import numpy as np
+from scipy.special import softmax
 
 from game_utils import CardKnowledge, Mutator
 
-from .poirot import Hint
 from .canaan_bot import CanaanBot
-import numpy as np
-from scipy.special import softmax
+from .poirot import Hint
 
 
 class Nexto(CanaanBot):

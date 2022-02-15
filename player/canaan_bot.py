@@ -1,8 +1,11 @@
-from game_utils import Mutator, Table
-from .poirot import Poirot, Hint
-import numpy as np
 from typing import Optional
+
+import numpy as np
+
 from constants import COLORS
+from game_utils import Mutator, Table
+
+from .poirot import Hint, Poirot
 
 
 class CanaanBot(Poirot):

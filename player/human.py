@@ -1,8 +1,9 @@
-from .player import Player
 import sys
 import threading
+
 import constants
-import GameData
+import game_data
+from .player import Player
 
 
 class Human(Player):
@@ -16,8 +17,8 @@ class Human(Player):
             # Process data if it is not empty
             if not data:
                 continue
-            data = GameData.GameData.deserialize(data)
-            if type(data) is GameData.ServerPlayerStartRequestAccepted:
+            data = game_data.GameData.deserialize(data)
+            if type(data) is game_data.ServerPlayerStartRequestAccepted:
                 dataOk = True
                 print(
                     "Ready: "
@@ -27,15 +28,15 @@ class Human(Player):
                     + " players"
                 )
                 data = self.socket.recv(constants.DATASIZE)
-                data = GameData.GameData.deserialize(data)
-            if type(data) is GameData.ServerStartGameData:
+                data = game_data.GameData.deserialize(data)
+            if type(data) is game_data.ServerStartGameData:
                 dataOk = True
                 print("Game start!")
                 self.socket.send(
-                    GameData.ClientPlayerReadyData(self.player_name).serialize()
+                    game_data.ClientPlayerReadyData(self.player_name).serialize()
                 )
                 self.status = "Game"
-            if type(data) is GameData.ServerGameStateData:
+            if type(data) is game_data.ServerGameStateData:
                 dataOk = True
                 print("Current player: " + data.currentPlayer)
                 print("Player hands: ")
@@ -52,22 +53,22 @@ class Human(Player):
                     print("\t" + c.toClientString())
                 print(f"Note tokens used: {data.usedNoteTokens}/8")
                 print(f"Storm tokens used: {data.usedStormTokens}/3")
-            if type(data) is GameData.ServerActionInvalid:
+            if type(data) is game_data.ServerActionInvalid:
                 dataOk = True
                 print("Invalid action performed. Reason:")
                 print(data.message)
-            if type(data) is GameData.ServerActionValid:
+            if type(data) is game_data.ServerActionValid:
                 dataOk = True
                 print("Action valid!")
                 print("Current player: " + data.player)
-            if type(data) is GameData.ServerPlayerMoveOk:
+            if type(data) is game_data.ServerPlayerMoveOk:
                 dataOk = True
                 print("Nice move!")
                 print("Current player: " + data.player)
-            if type(data) is GameData.ServerPlayerThunderStrike:
+            if type(data) is game_data.ServerPlayerThunderStrike:
                 dataOk = True
                 print("OH NO! The Gods are unhappy with you!")
-            if type(data) is GameData.ServerHintData:
+            if type(data) is game_data.ServerHintData:
                 dataOk = True
                 print("Hint type: " + data.type)
                 print(
@@ -79,10 +80,10 @@ class Human(Player):
                 )
                 for i in data.positions:
                     print("\t" + str(i))
-            if type(data) is GameData.ServerInvalidDataReceived:
+            if type(data) is game_data.ServerInvalidDataReceived:
                 dataOk = True
                 print(data.data)
-            if type(data) is GameData.ServerGameOver:
+            if type(data) is game_data.ServerGameOver:
                 dataOk = True
                 print(data.message)
                 print(data.score)

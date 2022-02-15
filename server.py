@@ -4,14 +4,13 @@ import socket
 import sys
 import threading
 
-import GameData
 from constants import *
-from game import Game, Player
+import game_data
 
 mutex = threading.Lock()
 # SERVER
 playerConnections = {}
-game = Game()
+game = game_data.Game()
 
 playersOk = []
 
@@ -44,11 +43,11 @@ def manageConnection(conn: socket, addr):
                     os._exit(0)
                 keepActive = False
             else:
-                print(f"SERVER PROCESSING {GameData.GameData.deserialize(data)}")
-                data = GameData.GameData.deserialize(data)
+                print(f"SERVER PROCESSING {game_data.GameData.deserialize(data)}")
+                data = game_data.GameData.deserialize(data)
                 print(f"SERVER RECEIVED {type(data)} from {data.sender}")
                 if status == "Lobby":
-                    if type(data) is GameData.ClientPlayerAddData:
+                    if type(data) is game_data.ClientPlayerAddData:
                         playerName = data.sender
                         commandQueue[playerName] = []
                         if (
@@ -58,7 +57,7 @@ def manageConnection(conn: socket, addr):
                         ):
                             logging.warning("Duplicate player: " + playerName)
                             conn.send(
-                                GameData.ServerActionInvalid(
+                                game_data.ServerActionInvalid(
                                     "Player with that name already registered."
                                 ).serialize()
                             )
@@ -68,13 +67,13 @@ def manageConnection(conn: socket, addr):
                         logging.info("Player connected: " + playerName)
                         game.addPlayer(playerName)
                         conn.send(
-                            GameData.ServerPlayerConnectionOk(playerName).serialize()
+                            game_data.ServerPlayerConnectionOk(playerName).serialize()
                         )
-                    elif type(data) is GameData.ClientPlayerStartRequest:
+                    elif type(data) is game_data.ClientPlayerStartRequest:
                         game.setPlayerReady(playerName)
                         logging.info("Player ready: " + playerName)
                         conn.send(
-                            GameData.ServerPlayerStartRequestAccepted(
+                            game_data.ServerPlayerStartRequestAccepted(
                                 len(game.getPlayers()), game.getNumReadyPlayers()
                             ).serialize()
                         )
@@ -89,12 +88,12 @@ def manageConnection(conn: socket, addr):
                             logging.info("Game start! Between: " + str(listNames))
                             for player in playerConnections:
                                 playerConnections[player][0].send(
-                                    GameData.ServerStartGameData(listNames).serialize()
+                                    game_data.ServerStartGameData(listNames).serialize()
                                 )
                             game.start()
 
                     # This ensures every player is ready to send requests
-                    elif type(data) is GameData.ClientPlayerReadyData:
+                    elif type(data) is game_data.ClientPlayerReadyData:
                         playersOk.append(1)
                     # If every player is ready to send requests, then the game can start
                     if len(playersOk) == len(game.getPlayers()):
@@ -117,9 +116,9 @@ def manageConnection(conn: socket, addr):
                                             os._exit(0)
                         commandQueue.clear()
                     elif (
-                        type(data) is not GameData.ClientPlayerAddData
-                        and type(data) is not GameData.ClientPlayerStartRequest
-                        and type(data) is not GameData.ClientPlayerReadyData
+                            type(data) is not game_data.ClientPlayerAddData
+                            and type(data) is not game_data.ClientPlayerStartRequest
+                            and type(data) is not game_data.ClientPlayerReadyData
                     ):
                         commandQueue[playerName].append(data)
                 # In game
@@ -135,7 +134,7 @@ def manageConnection(conn: socket, addr):
                                 logging.info("Game score: " + str(game.getScore()))
                                 # os._exit(0)
                                 players = game.getPlayers()
-                                game = Game()
+                                game = game_data.Game()
                                 for player in players:
                                     logging.info("Starting new game")
                                     game.addPlayer(player.name)

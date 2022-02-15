@@ -3,9 +3,9 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-import GameData
+import game_data
 from constants import COLORS, DATASIZE, INITIAL_DECK
-from game_utils import CardKnowledge, Table
+from game_utils import CardKnowledge
 
 from .bot import Bot
 
@@ -35,7 +35,7 @@ class Poirot(Bot):
         }  # type: Dict[str, List[CardKnowledge]]
         self.mutator.activate(evolve)
 
-    def _process_game_start(self, action: GameData.ServerStartGameData) -> None:
+    def _process_game_start(self, action: game_data.ServerStartGameData) -> None:
         super()._process_game_start(action)
         # For each player create his knowledge
         self.initial_cards = 5 if len(self.players) < 4 else 4
@@ -44,14 +44,14 @@ class Poirot(Bot):
                 CardKnowledge() for _ in range(self.initial_cards)
             ]
 
-    def _process_game_over(self, data: GameData.ServerGameOver):
+    def _process_game_over(self, data: game_data.ServerGameOver):
         super()._process_game_over(data)
         for player in self.players:
             self.players_knowledge[player] = [
                 CardKnowledge() for _ in range(self.initial_cards)
             ]
 
-    def _elaborate_hint(self, hint: GameData.ServerHintData) -> None:
+    def _elaborate_hint(self, hint: game_data.ServerHintData) -> None:
         self.turn_of = hint.player
         if self.turn_of == self.player_name:
             self.need_info = True
@@ -65,25 +65,25 @@ class Poirot(Bot):
                     hint.value
                 )
 
-    def _process_discard(self, action: GameData.ServerActionValid) -> None:
+    def _process_discard(self, action: game_data.ServerActionValid) -> None:
         super()._process_discard(action)
         self._delete_knowledge(
             action.lastPlayer, action.cardHandIndex, action.handLength
         )
 
-    def _process_played_card(self, action: GameData.ServerPlayerMoveOk) -> None:
+    def _process_played_card(self, action: game_data.ServerPlayerMoveOk) -> None:
         super()._process_played_card(action)
         self._delete_knowledge(
             action.lastPlayer, action.cardHandIndex, action.handLength
         )
 
-    def _process_error(self, action: GameData.ServerPlayerThunderStrike) -> None:
+    def _process_error(self, action: game_data.ServerPlayerThunderStrike) -> None:
         super()._process_error(action)
         self._delete_knowledge(
             action.lastPlayer, action.cardHandIndex, action.handLength
         )
 
-    def _update_infos(self, infos: GameData.ServerGameStateData) -> None:
+    def _update_infos(self, infos: game_data.ServerGameStateData) -> None:
         super()._update_infos(infos)
         for possibility in self.players_knowledge[self.player_name]:
             possibility.remove_cards(
@@ -349,29 +349,29 @@ class Poirot(Bot):
         while True:
             try:
                 data = self.socket.recv(DATASIZE)
-                data = GameData.GameData.deserialize(data)
+                data = game_data.GameData.deserialize(data)
             except:
                 self.logger.error("Socket Error")
                 self._disconnect()
                 break
             # Process infos
-            if type(data) is GameData.ServerActionInvalid:
+            if type(data) is game_data.ServerActionInvalid:
                 self._process_invalid(data)
                 self.turn_of = ""
                 continue
-            if type(data) is GameData.ServerPlayerThunderStrike:
+            if type(data) is game_data.ServerPlayerThunderStrike:
                 self._process_error(data)
-            if type(data) is GameData.ServerStartGameData:
+            if type(data) is game_data.ServerStartGameData:
                 self._process_game_start(data)
-            if type(data) is GameData.ServerActionValid:
+            if type(data) is game_data.ServerActionValid:
                 self._process_discard(data)
-            if type(data) is GameData.ServerHintData:
+            if type(data) is game_data.ServerHintData:
                 self._elaborate_hint(data)
-            if type(data) is GameData.ServerGameStateData:
+            if type(data) is game_data.ServerGameStateData:
                 self._update_infos(data)
-            if type(data) is GameData.ServerPlayerMoveOk:
+            if type(data) is game_data.ServerPlayerMoveOk:
                 self._process_played_card(data)
-            if type(data) is GameData.ServerGameOver:
+            if type(data) is game_data.ServerGameOver:
                 self._process_game_over(data)
 
             # break
