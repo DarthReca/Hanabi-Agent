@@ -3,6 +3,7 @@ import pickle
 
 from constants import DATASIZE
 
+
 # Generic object
 class GameData(object):
     def __init__(self, sender) -> None:

@@ -1,20 +1,17 @@
-import os
-import GameData
-import socket
-from game import Game
-from game import Player
-import threading
-from constants import *
-from signal import signal
 import logging
+import os
+import socket
 import sys
+import threading
+
+import GameData
+from constants import *
+from game import Game, Player
 
 mutex = threading.Lock()
 # SERVER
 playerConnections = {}
 game = Game()
-
-mutex = threading.Lock()
 
 playersOk = []
 

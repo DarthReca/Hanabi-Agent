@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-from constants import *
 import argparse
-import player
 
+import player
+from constants import *
 
 if __name__ == "__main__":
     # Arguments

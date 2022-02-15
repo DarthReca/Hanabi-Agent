@@ -1,7 +1,8 @@
+import logging
 from copy import deepcopy
 from random import shuffle
+
 import GameData
-import logging
 
 
 class Card(object):

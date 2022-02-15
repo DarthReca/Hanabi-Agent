@@ -1,8 +1,10 @@
+from itertools import chain
+from typing import Dict, List, Set, Tuple
+
+import numpy as np
+
 import game
 from constants import COLORS, INITIAL_DECK
-from typing import List, Dict, Set, Tuple
-from itertools import chain
-import numpy as np
 
 
 class Table:

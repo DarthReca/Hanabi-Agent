@@ -1,8 +1,9 @@
-from constants import COLORS
+from typing import Set
+
 import numpy as np
-from typing import Literal, Optional, Tuple, Dict, List, Set
+
+from constants import COLORS, INITIAL_DECK
 from game_utils import Table
-from constants import INITIAL_DECK
 
 
 class CardKnowledge:
