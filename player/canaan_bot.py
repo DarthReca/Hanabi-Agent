@@ -14,7 +14,7 @@ class CanaanBot(Poirot):
 
     References
     ----------
-    [1] https://arxiv.org/pdf/1809.09764.pdf
+    [1] Rodrigo Canaan, Haotian Shen, Ruben Rodriguez Torrado, Julian Togelius, Andy Nealen, & Stefan Menzel. (2018). Evolving Agents for the Hanabi 2018 CIG Competition.
 
     """
 
