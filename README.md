@@ -9,7 +9,7 @@
 <br />
 
 [![Project license](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
-[![Project license](https://img.shields.io/badge/license-GPL--2.0-orange.svg?style=flat-square)](GPL-LICENSE)
+[![Project license](https://img.shields.io/badge/license-GPL--2.0-orange.svg?style=flat-square)](LICENSE-GPL)
 
 </div>
 
